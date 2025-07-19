@@ -8,7 +8,7 @@
 
 ## 📘 About PhenoFit Pro
 
-PhenoFit Pro isn't a plug-and-play package—it's a purpose-built web application, tailored to perform complex phenology tasks in an intuitive and interactive way. It’s built for those who analyze vegetation indices like NDVI, GCC, EVI, ExG, etc., and need precise control over curve fitting and visualization, all from within a browser.
+PhenoFit Pro is a purpose-built web application, tailored to perform complex phenology tasks in an intuitive and interactive way. It’s built for those who analyze vegetation indices like NDVI, GCC, EVI, ExG, etc., and need precise control over curve fitting and visualization, all from within a browser.
 
 ---
 
@@ -64,29 +64,6 @@ PhenoFit Pro isn't a plug-and-play package—it's a purpose-built web applicatio
 
 This stack enables zero-install, zero-server usage—everything happens in-browser.
 
----
-
-## 📎 Screenshots
-
-| Load & Customize | Fit & Annotate | Export |
-|------------------|----------------|--------|
-| ![load](Screenshots/load_data.png) | ![fit](Screenshots/fit_curve.png) | ![export](Screenshots/export_output.png) |
-
----
-
-## 🛠 Deployment
-
-Hosted via GitHub Pages. Build with:
-
-```bash
-npm run build
-npm run deploy
-```
-
-Ensure `vite.config.ts` has:
-```ts
-base: "/PhenoFit-Pro/"
-```
 
 ---
 
@@ -96,7 +73,7 @@ base: "/PhenoFit-Pro/"
 PhD Scholar, Geomatics Engineering, IIT Roorkee  
 📫 [akash_k@ce.iitr.ac.in](mailto:akash_k@ce.iitr.ac.in)  
 🌐 [itsakashpandey.github.io/PhenoFit-Pro](https://itsakashpandey.github.io/PhenoFit-Pro)  
-🔗 [GitHub](https://github.com/ItsAkashPandey) | [LinkedIn](https://linkedin.com/in/akashkumar98)
+🔗 [GitHub](https://github.com/ItsAkashPandey) | [LinkedIn](https://www.linkedin.com/in/iamakashpandey/)
 
 ---
 
