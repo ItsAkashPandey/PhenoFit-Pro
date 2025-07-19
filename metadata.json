@@ -1,0 +1,6 @@
+{
+  "name": "PhenoFit Pro",
+  "description": "An interactive web application for fitting phenological curve models to time-series data. It supports double logistic, single logistic, and various smoothing models, providing robust tools for data analysis and visualization.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
