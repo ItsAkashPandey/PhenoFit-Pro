@@ -38,7 +38,7 @@ const ParameterSlider: React.FC<ParameterSliderProps> = ({ label, value, min, ma
               value={value}
               onChange={handleSliderChange}
               disabled={isDisabled}
-              className="flex-grow h-2 bg-text-on-panel-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-grow h-2 bg-on-panel-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <input
               type="number"

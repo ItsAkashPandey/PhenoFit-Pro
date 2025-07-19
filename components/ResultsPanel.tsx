@@ -16,15 +16,15 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ stats, keyPoints, onDownloa
                 <div className="md:col-span-1">
                     <h3 className="text-md font-semibold text-accent-blue-on-panel">Goodness of Fit</h3>
                     <div className="space-y-2 text-sm mt-2">
-                      <div className="flex justify-between text-text-on-panel-secondary"><span>R²:</span><span className="font-semibold text-on-panel-primary">{stats.r2.toFixed(4)}</span></div>
-                      <div className="flex justify-between text-text-on-panel-secondary"><span>RMSE:</span><span className="font-semibold text-on-panel-primary">{stats.rmse.toFixed(4)}</span></div>
+                      <div className="flex justify-between text-on-panel-secondary"><span>R²:</span><span className="font-semibold text-on-panel-primary">{stats.r2.toFixed(4)}</span></div>
+                      <div className="flex justify-between text-on-panel-secondary"><span>RMSE:</span><span className="font-semibold text-on-panel-primary">{stats.rmse.toFixed(4)}</span></div>
                     </div>
                 </div>
 
                 <div className="md:col-span-1">
                     <h3 className="text-md font-semibold text-accent-blue-on-panel">Phenological Parameters</h3>
                     <table className="w-full text-sm text-left mt-2">
-                      <thead><tr className="border-b border-panel-border"><th className="pb-1 font-medium text-text-on-panel-secondary">Phase</th><th className="pb-1 text-right font-medium text-text-on-panel-secondary">X</th><th className="pb-1 text-right font-medium text-text-on-panel-secondary">Y</th></tr></thead>
+                      <thead><tr className="border-b border-panel-border"><th className="pb-1 font-medium text-on-panel-secondary">Phase</th><th className="pb-1 text-right font-medium text-on-panel-secondary">X</th><th className="pb-1 text-right font-medium text-on-panel-secondary">Y</th></tr></thead>
                       <tbody>
                         <tr><td className="py-1">SOS</td><td className="text-right">{keyPoints.sos?.x.toFixed(2) ?? 'N/A'}</td><td className="text-right">{keyPoints.sos?.y.toFixed(2) ?? 'N/A'}</td></tr>
                         <tr><td className="py-1">EOS</td><td className="text-right">{keyPoints.eos?.x.toFixed(2) ?? 'N/A'}</td><td className="text-right">{keyPoints.eos?.y.toFixed(2) ?? 'N/A'}</td></tr>

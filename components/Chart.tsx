@@ -68,7 +68,7 @@ const CustomTooltip: React.FC<CustomTooltipComponentProps> = ({ active, payload,
         }
         
         return (
-            <div className="p-2 bg-panel-bg border border-panel-border rounded-md shadow-lg text-sm font-sans text-text-on-panel-primary">
+            <div className="p-2 bg-panel-bg border border-panel-border rounded-md shadow-lg text-sm font-sans text-on-panel-primary">
                 <p className="font-bold text-accent-blue-on-panel">{payload.find(p => p.name === 'Fitted Curve')?.name || payload[0].name}</p>
                 <p>{`${xCol}: ${xValue}`}</p>
                 <p>{`${yCol}: ${dataPoint.y.toFixed(2)}`}</p>

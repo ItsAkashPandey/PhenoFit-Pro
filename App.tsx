@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -695,9 +694,9 @@ const App: React.FC = () => {
                                 isDateAxis={isDateAxis} isCircularAxis={isCircularAxis}
                             />
                         ) : (
-                            <div className="text-center text-text-primary bg-chart-area-bg rounded-lg p-10">
+                            <div className="text-center text-primary bg-chart-area-bg rounded-lg p-10">
                             <h2 className="text-2xl font-semibold">Welcome to PhenoFit Pro</h2>
-                            <p className="mt-2 text-text-muted">Load a data file to begin your analysis.</p>
+                            <p className="mt-2 text-muted">Load a data file to begin your analysis.</p>
                             </div>
                         )}
                     </div>

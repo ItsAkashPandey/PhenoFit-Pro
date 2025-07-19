@@ -173,7 +173,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 {currentParamConfigs.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-panel-border space-y-3">
                      <div className="flex justify-end">
-                        <span className="text-xs w-10 text-center font-bold uppercase text-text-on-panel-muted" title="Lock Parameter">Lock</span>
+                        <span className="text-xs w-10 text-center font-bold uppercase text-on-panel-muted" title="Lock Parameter">Lock</span>
                     </div>
                     {currentParamConfigs.map((p: ParameterConfig) => (
                         <ParameterSlider key={p.name} label={p.label} min={p.min} max={p.max} step={p.step} 

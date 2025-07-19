@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useRef } from 'react';
 import { StyleTarget, MarkerShape, LineStyle, MarkerStyle, TextStyle, BackgroundStyle, GridStyle } from '../../types';
 import { HexColorPicker } from 'react-colorful';
@@ -63,11 +61,11 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
         const value = currentStyle[prop] as number ?? min;
         return (
             <div>
-                 <label className="text-xs font-medium text-text-on-panel-muted flex justify-between">
+                 <label className="text-xs font-medium text-on-panel-muted flex justify-between">
                     <span>{label}</span>
                     <span>{value.toFixed(prop === 'opacity' ? 2 : 0)}</span>
                  </label>
-                 <input type="range" className="w-full h-2 bg-text-on-panel-muted rounded-lg appearance-none cursor-pointer"
+                 <input type="range" className="w-full h-2 bg-on-panel-muted rounded-lg appearance-none cursor-pointer"
                     min={min} max={max} step={step} value={value}
                     onChange={e => onStyleChange({ [prop]: parseFloat(e.target.value) })}
                  />
@@ -77,7 +75,7 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
 
     const renderSelect = (label: string, prop: keyof typeof currentStyle, options: {name: string, value: string | MarkerShape}[], changeHandler?: (value: string) => void) => (
         <div>
-            <label className="text-xs font-medium text-text-on-panel-muted">{label}</label>
+            <label className="text-xs font-medium text-on-panel-muted">{label}</label>
             <select
                 className="mt-1 block w-full py-1 text-sm border-panel-border bg-item-bg-on-panel text-on-panel-primary focus:ring-accent-pink focus:border-accent-pink rounded-md"
                 value={currentStyle[prop] as string}
@@ -111,7 +109,7 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
                 {gridStyle.visible && (
                     <>
                         <div>
-                            <label className="text-xs font-medium text-text-on-panel-muted">Grid Color</label>
+                            <label className="text-xs font-medium text-on-panel-muted">Grid Color</label>
                             <HexColorPicker
                                 className="!w-full mt-1"
                                 color={gridStyle.color}
@@ -132,7 +130,7 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
             return (
                 <div className="space-y-3">
                     <div>
-                        <label className="text-xs font-medium text-text-on-panel-muted">Background Color</label>
+                        <label className="text-xs font-medium text-on-panel-muted">Background Color</label>
                         {renderColorSelector('color', '#ffffff', (newColor) => onStyleChange({ color: newColor }))}
                     </div>
                     {renderSlider("Opacity", 'opacity', 0, 1, 0.01)}
@@ -143,7 +141,7 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
         
         return (
             <div className="space-y-3">
-                {'color' in currentStyle && <div><label className="text-xs font-medium text-text-on-panel-muted">Color</label>{renderColorSelector('color', '#000000', (newColor) => onStyleChange({ color: newColor }))}</div>}
+                {'color' in currentStyle && <div><label className="text-xs font-medium text-on-panel-muted">Color</label>{renderColorSelector('color', '#000000', (newColor) => onStyleChange({ color: newColor }))}</div>}
                 {'opacity' in currentStyle && renderSlider("Opacity", 'opacity', 0, 1, 0.01)}
                 
                 {'strokeWidth' in currentStyle && renderSlider("Thickness", 'strokeWidth', 1, 10, 0.5)}
