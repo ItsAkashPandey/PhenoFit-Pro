@@ -683,14 +683,7 @@ const App: React.FC = () => {
                     />
                 </aside>
                 <main ref={mainAreaRef} className="flex-1 flex flex-col items-stretch justify-start min-h-0 min-w-0">
-                    <div className="text-center pt-4">
-						<img
-						src={`${process.env.PUBLIC_URL}/PhenoFit_Pro_Logo.png`}
-						alt="PhenoFit Pro Logo"
-						style={{ width: '200px', margin: '1rem auto', display: 'block'}}
-						/>
-						<h1 className="text-xl font-semibold mt-2">PhenoFit Pro</h1>
-					</div>
+                 
 					<div ref={chartContainerRef} className="flex-grow flex flex-col items-center justify-center min-h-0 p-4 bg-chart-area-bg">
                         {isDataLoaded ? (
                             <Chart 
