@@ -62,7 +62,7 @@ export async function downloadChartImage(element: HTMLElement, fileName: string 
     try {
         const dataUrl = await toPng(element, { 
             backgroundColor: '#ffffff',
-            pixelRatio: 3,
+            pixelRatio: 6.25,
             width: element.clientWidth,
             height: element.clientHeight,
         });

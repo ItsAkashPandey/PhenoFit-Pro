@@ -12,19 +12,17 @@ interface GroupingDialogProps {
 const GroupingDialog: React.FC<GroupingDialogProps> = ({ columns, onSubmit, onCancel }) => {
     const [startCol, setStartCol] = useState(columns[0] || '');
     const [endCol, setEndCol] = useState<string>('');
-    const [labelCol, setLabelCol] = useState(columns.length > 1 ? columns[1] : columns[0] || '');
-    const [colorCol, setColorCol] = useState<string>('');
+    const [labelCol, setLabelCol] = useState<string>(columns.length > 1 ? columns[1] : columns[0] || '');
 
     const handleSubmit = () => {
-        if (!startCol || !labelCol) {
-            alert("Start Column and Label Column are required.");
+        if (!startCol) {
+            alert("Start Column is required.");
             return;
         }
         onSubmit({
             startCol,
             endCol: endCol || null,
-            labelCol,
-            colorCol: colorCol || null,
+            labelCol: labelCol === '' ? null : labelCol,
         });
     };
     
@@ -50,8 +48,8 @@ const GroupingDialog: React.FC<GroupingDialogProps> = ({ columns, onSubmit, onCa
                 
                 {renderSelect("Start Column (e.g., event date)", startCol, setStartCol)}
                 {renderSelect("End Column (optional)", endCol, setEndCol, true)}
-                {renderSelect("Group Label Column", labelCol, setLabelCol)}
-                {renderSelect("Color Column (optional)", colorCol, setColorCol, true)}
+                {renderSelect("Group Label Column", labelCol, setLabelCol, true)}
+                
 
                 <div className="flex justify-end space-x-4 pt-4">
                     <Button variant="secondary" onClick={onCancel}>Cancel</Button>

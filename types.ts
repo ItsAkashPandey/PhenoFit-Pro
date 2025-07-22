@@ -52,7 +52,7 @@ export interface KeyPoints {
 export interface GroupingConfig {
   startCol: string;
   endCol: string | null;
-  labelCol: string;
+  labelCol: string | null;
   colorCol: string | null;
 }
 
@@ -80,7 +80,7 @@ export interface LineStyle {
     strokeDasharray: string; // '0' for solid, '5 5' for dashed etc.
 }
 
-export type MarkerShape = 'circle' | 'cross' | 'diamond' | 'square' | 'star' | 'triangle' | 'wye';
+export type MarkerShape = 'circle' | 'cross' | 'diamond' | 'square' | 'star' | 'triangle' | 'wye' | 'x';
 
 export interface MarkerStyle {
     color: string;
@@ -94,6 +94,22 @@ export interface TextStyle {
     fontSize: number;
     fontWeight: 'normal' | 'bold';
     fontStyle: 'normal' | 'italic';
+}
+
+export interface LegendStyle {
+    // Text styling
+    color: string;
+    fontSize: number;
+    fontWeight: 'normal' | 'bold';
+    fontStyle: 'normal' | 'italic';
+
+    // Item & Layout styling
+    iconSize: number;
+    layout: 'horizontal' | 'vertical';
+
+    // Background styling
+    backgroundColor: string;
+    backgroundOpacity: number;
 }
 
 export interface GridStyle {
@@ -111,7 +127,8 @@ export interface ChartStyles {
     yAxis: TextStyle;
     groupingText: TextStyle;
     groupingStyles: LineStyle[];
-    legend: TextStyle;
+    showGroupingLabels: boolean;
+    legend: LegendStyle;
     chartBackground: BackgroundStyle;
     grid: GridStyle;
 }
