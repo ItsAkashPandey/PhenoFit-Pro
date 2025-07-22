@@ -5,23 +5,34 @@ import ControlPanel from './components/ControlPanel';
 import Chart from './components/Chart';
 import GroupingDialog from './components/GroupingDialog';
 import StylePicker from './components/ui/StylePicker';
+import SheetSelectionDialog from './components/SheetSelectionDialog';
 import ResultsPanel from './components/ResultsPanel';
-import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle } from './types';
+import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle } from './types';
 import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
 import { downloadChartImage, downloadExcelData } from './services/downloadService';
 
 const SPECTRAL_PALETTE = [ '#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#d53e4f', '#9e0142' ];
 
 const initialStyles: ChartStyles = {
-    observed: { color: '#007bff', shape: 'circle', size: 6, opacity: 0.7 },
+    observed: { color: '#000000', shape: 'circle', size: 6, opacity: 0.8 },
     outliers: { color: '#ef4444', shape: 'cross', size: 8, opacity: 0.9 },
     pendingOutliers: { color: '#f97316', shape: 'circle', size: 7, opacity: 0.9 },
-    fitted: { color: '#d63384', strokeWidth: 3, opacity: 1, strokeDasharray: '0' },
-    xAxis: { color: '#212529', fontSize: 14, fontWeight: 'normal', fontStyle: 'normal' },
-    yAxis: { color: '#212529', fontSize: 14, fontWeight: 'normal', fontStyle: 'normal' },
+    fitted: { color: '#ff0000', strokeWidth: 4, opacity: 1, strokeDasharray: '0' },
+    xAxis: { color: '#000000', fontSize: 16, fontWeight: 'bold', fontStyle: 'normal' },
+    yAxis: { color: '#000000', fontSize: 16, fontWeight: 'bold', fontStyle: 'normal' },
     groupingText: { color: '#212529', fontSize: 12, fontWeight: 'bold', fontStyle: 'normal' },
     groupingStyles: [],
-    legend: { color: '#212529', fontSize: 12, fontWeight: 'normal', fontStyle: 'normal'},
+    showGroupingLabels: false, // Default to false
+    legend: {
+        color: '#212529',
+        fontSize: 12,
+        fontWeight: 'normal',
+        fontStyle: 'normal',
+        iconSize: 16,
+        layout: 'vertical',
+        backgroundColor: '#ffffff',
+        backgroundOpacity: 0.9
+    },
     chartBackground: { color: '#ffffff', opacity: 1 },
     grid: { visible: true, color: '#adb5bd', strokeDasharray: '3 3' }
 };
@@ -62,12 +73,36 @@ const App: React.FC = () => {
     const [columns, setColumns] = useState<string[]>([]);
     const [selectedXCol, setSelectedXCol] = useState('');
     const [selectedYCol, setSelectedYCol] = useState('');
-    
+
     // Outlier state
     const [isOutlierRemovalEnabled, setIsOutlierRemovalEnabled] = useState(false);
     const [outlierMethod, setOutlierMethod] = useState<OutlierMethod>(OutlierMethod.SD);
     const [outlierThreshold, setOutlierThreshold] = useState(3);
     const [confirmedRemovedData, setConfirmedRemovedData] = useState<Point[]>([]);
+
+    // Data Filtering Options
+    const [removeZeroValues, setRemoveZeroValues] = useState(false);
+    const [removeNaNValues, setRemoveNaNValues] = useState(true);
+    const [removeBlankValues, setRemoveBlankValues] = useState(true);
+
+    // Legend Visibility
+    const [showLegend, setShowLegend] = useState(true);
+
+    // Axis Limits
+    const [xAxisMin, setXAxisMin] = useState<number | undefined>(undefined);
+    const [xAxisMax, setXAxisMax] = useState<number | undefined>(undefined);
+    const [yAxisMin, setYAxisMin] = useState<number | undefined>(undefined);
+    const [yAxisMax, setYAxisMax] = useState<number | undefined>(undefined);
+
+    const [xAxisMinStr, setXAxisMinStr] = useState('');
+    const [xAxisMaxStr, setXAxisMaxStr] = useState('');
+
+    const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+
+    // Excel Sheet Selection State
+    const [isSheetSelectionVisible, setIsSheetSelectionVisible] = useState(false);
+    const [sheetNames, setSheetNames] = useState<string[]>([]);
+    const [excelWorkbook, setExcelWorkbook] = useState<XLSX.WorkBook | null>(null);
 
     // Grouping State
     const [groupingRawData, setGroupingRawData] = useState<any[]|null>(null);
@@ -83,7 +118,7 @@ const App: React.FC = () => {
     });
     const [lockedParams, setLockedParams] = useState<Set<keyof FitParameters>>(new Set());
     const [hasUserOptimized, setHasUserOptimized] = useState(false);
-    
+
     // UI & Chart State
     const [fittedData, setFittedData] = useState<Point[]>([]);
     const [keyPoints, setKeyPoints] = useState<KeyPoints>({ sos: null, eos: null, peak: null });
@@ -92,20 +127,24 @@ const App: React.FC = () => {
     const [styles, setStyles] = useState<ChartStyles>(initialStyles);
     const [stylePickerState, setStylePickerState] = useState<Omit<StylePickerState, 'currentStyle'>>({ visible: false, top: 0, left: 0, target: null });
     const [elementPositions, setElementPositions] = useState<ChartElementPositions>({
-        legend: { x: 0, y: 0},
+        legend: { x: 0, y: 0 }, // Will be set after mount
         groupingLabels: []
     });
     const [dragState, setDragState] = useState<DragState>({isDragging: false, target: null, startX: 0, startY: 0, initialX: 0, initialY: 0});
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const mainAreaRef = useRef<HTMLDivElement>(null);
-    
+    const wasDragged = useRef(false);
+
     // Loading State
     const [isOptimizing, setIsOptimizing] = useState(false);
     const isDataLoaded = rawData.length > 0;
-    
+
     // Derived state for chart axis type
     const isDateAxis = /date/i.test(selectedXCol);
     const isCircularAxis = /doy|day of year/i.test(selectedXCol);
+
+    const [xAxisLabel, setXAxisLabel] = useState(selectedXCol || 'X-Axis');
+    const [yAxisLabel, setYAxisLabel] = useState(selectedYCol || 'Y-Axis');
 
     const estimateSmartParameters = useCallback((data: Point[], isDate: boolean): Partial<FitParameters> => {
         if (data.length < 10) return {};
@@ -128,38 +167,22 @@ const App: React.FC = () => {
 
         const sosPoint = firstHalf.length > 1 ? firstHalf.reduce((prev, curr) => Math.abs(curr.y - (baseline + amplitude * 0.25)) < Math.abs(prev.y - (baseline + amplitude * 0.25)) ? curr : prev) : {x: sosTimeGuess, y: 0};
         const endPoint = data[data.length-1];
-        
+
         const estEnd = Math.round(peakTime + (endPoint.x - peakTime) * 0.5) || eosTimeGuess;
 
-        return { 
-            baseline: parseFloat(baseline.toFixed(4)), 
-            amplitude: parseFloat(amplitude.toFixed(4)), 
-            start: Math.round(sosPoint.x), 
-            end: estEnd, 
-            growthRate: 0.1, senescenceRate: 0.05, 
-            L: parseFloat(peakY.toFixed(4)), 
-            k: 0.1, 
-            x0: Math.round(peakTime) 
+        return {
+            baseline: parseFloat(baseline.toFixed(4)),
+            amplitude: parseFloat(amplitude.toFixed(4)),
+            start: Math.round(sosPoint.x),
+            end: estEnd,
+            growthRate: 0.1, senescenceRate: 0.05,
+            L: parseFloat(peakY.toFixed(4)),
+            k: 0.1,
+            x0: Math.round(peakTime)
         };
     }, []);
 
-    const readFile = (file: File, callback: (data: any[]) => void) => {
-        const fileType = file.name.split('.').pop()?.toLowerCase();
-        if (fileType === 'csv') {
-            Papa.parse(file, { header: true, dynamicTyping: true, skipEmptyLines: true, complete: (res) => callback(res.data as any[]), error: (err) => alert(`Error: ${err.message}`) });
-        } else if (fileType === 'xlsx' || fileType === 'xls') {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const workbook = XLSX.read(e.target?.result, { type: 'array', cellDates: true });
-                    callback(XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]));
-                } catch (err) { alert(`Error parsing Excel: ${err instanceof Error ? err.message : 'Unknown'}`); }
-            };
-            reader.readAsArrayBuffer(file);
-        } else { alert("Unsupported file type."); }
-    };
-
-    const handleFileLoad = (file: File) => readFile(file, (data) => {
+    const processLoadedData = (data: any[]) => {
         if (!data || data.length === 0) return alert("File is empty.");
         setHasUserOptimized(false);
         setLockedParams(new Set());
@@ -170,8 +193,39 @@ const App: React.FC = () => {
         setSelectedYCol(cols.find(c => /ndvi|gcc|value|index/i.test(c)) || (cols.length > 1 ? cols[1] : ''));
         handleClearGrouping();
         setConfirmedRemovedData([]);
+    };
+
+    const readFile = (file: File, callback: (data: any[], sheetName?: string) => void) => {
+        const fileType = file.name.split('.').pop()?.toLowerCase();
+        if (fileType === 'csv') {
+            Papa.parse(file, { header: true, dynamicTyping: true, skipEmptyLines: true, complete: (res: Papa.ParseResult<any>) => callback(res.data as any[]), error: (err: Papa.ParseError) => alert(`Error: ${err.message}`) });
+        } else if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'xlsm' || fileType === 'xlsb') {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const workbook = XLSX.read(e.target?.result, { type: 'array', cellDates: true });
+                    if (workbook.SheetNames.length > 1) {
+                        setExcelWorkbook(workbook);
+                        setSheetNames(workbook.SheetNames);
+                        setIsSheetSelectionVisible(true);
+                    } else {
+                        callback(XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]), workbook.SheetNames[0]);
+                    }
+                } catch (err) {
+                    console.error("Error parsing Excel file:", err);
+                    alert(`Error parsing Excel: ${err instanceof Error ? err.message : 'Unknown'}`);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            alert("Unsupported file type.");
+        }
+    };
+
+    const handleFileLoad = (file: File) => readFile(file, (data) => {
+        processLoadedData(data);
     });
-    
+
     const handleGroupingFileLoad = (file: File) => readFile(file, (data) => {
         if (!data || data.length === 0) return alert("Grouping file is empty.");
         setGroupingRawData(data);
@@ -179,31 +233,31 @@ const App: React.FC = () => {
         setIsGroupingDialogVisible(true);
     });
 
-    const handleClearGrouping = () => { setGroupingData(null); setGroupingRawData(null); setGroupingColumns([]); setStyles(prev => ({...prev, groupingStyles: []})); setElementPositions(prev => ({ ...prev, groupingLabels: [] }));};
+    const handleClearGrouping = () => { setGroupingData(null); setGroupingRawData(null); setGroupingColumns([]); setStyles((prev: ChartStyles) => ({...prev, groupingStyles: []})); setElementPositions((prev: ChartElementPositions) => ({ ...prev, groupingLabels: [] }));};
 
     const handleGroupingConfigSubmit = (config: GroupingConfig) => {
         if (!groupingRawData) return;
-        const newGroupingData = groupingRawData.map((row) => {
-            const labelValue = row[config.labelCol];
-            const labelString = (typeof labelValue === 'object' && labelValue !== null) 
-                ? JSON.stringify(labelValue) 
-                : String(labelValue ?? '');
-    
+        const newGroupingData = groupingRawData.map((row: any) => {
             const startVal = isDateAxis ? parseDateValue(row[config.startCol]) : parseFloat(row[config.startCol]);
-            const endVal = (config.endCol && row[config.endCol] != null) 
-                ? (isDateAxis ? parseDateValue(row[config.endCol]) : parseFloat(row[config.endCol])) 
+            const endVal = (config.endCol && row[config.endCol] != null)
+                ? (isDateAxis ? parseDateValue(row[config.endCol]) : parseFloat(row[config.endCol]))
                 : null;
-
-            return {
+            const group: any = {
                 start: startVal,
                 end: endVal,
-                label: labelString,
-                color: config.colorCol ? row[config.colorCol] : 'placeholder'
             };
-        }).filter(g => g.start != null && !isNaN(g.start) && g.label != null);
-        
+            if (config.labelCol) {
+                const labelValue = row[config.labelCol];
+                const labelString = (typeof labelValue === 'object' && labelValue !== null)
+                    ? JSON.stringify(labelValue)
+                    : String(labelValue ?? '');
+                group.label = labelString;
+            }
+            return group;
+        }).filter((g: any) => g.start != null && !isNaN(g.start));
+
         const isEventOnly = config.endCol === null;
-        const newGroupingStyles = newGroupingData.map((_, index) => ({
+        const newGroupingStyles = newGroupingData.map((_: any, index: number) => ({
             color: SPECTRAL_PALETTE[index % SPECTRAL_PALETTE.length],
             strokeWidth: isEventOnly ? 3 : 2,
             opacity: 0.4,
@@ -211,16 +265,13 @@ const App: React.FC = () => {
         }));
 
         setGroupingData(newGroupingData as GroupingData[]);
-        setStyles(prev => ({...prev, groupingStyles: newGroupingStyles }));
-        setElementPositions(prev => ({...prev, groupingLabels: newGroupingData.map(() => ({x: 0, y: 0})) }));
+        setStyles((prev: ChartStyles) => ({...prev, groupingStyles: newGroupingStyles }));
+        setElementPositions((prev: ChartElementPositions) => ({...prev, groupingLabels: newGroupingData.map(() => ({x: 0, y: 0})) }));
         setIsGroupingDialogVisible(false);
     };
 
-    // This is the core data processing pipeline. It's memoized to prevent re-render loops.
-    // It handles parsing, transformations (like for circular DOY axes), and outlier detection.
     const processedData = useMemo(() => {
-        // 1. Initial Parsing from Raw Data
-        let parsedData: Point[] = rawData.map(row => {
+        let parsedData: Point[] = rawData.map((row: any): Omit<Point, 'x'> & { x: number | null } => {
             const xVal = row[selectedXCol];
             const yVal = row[selectedYCol];
             return {
@@ -228,14 +279,21 @@ const App: React.FC = () => {
                 y: parseFloat(yVal),
                 originalX: xVal
             };
-        }).filter(p => p.x != null && p.y != null && !isNaN(p.x) && !isNaN(p.y)) as Point[];
+        }).filter((p): p is Point => {
+            const isValid = p.x != null && p.y != null && !isNaN(p.x) && !isNaN(p.y);
+            if (!isValid) return false;
 
-        // 2. Sorting (crucially, skip for circular axes to preserve chronological order from file)
+            if (removeZeroValues && p.y === 0) return false;
+            if (removeNaNValues && isNaN(p.y)) return false;
+            if (removeBlankValues && (p.originalX === '' || p.originalX === null || p.originalX === undefined || p.y === null || p.y === undefined)) return false;
+
+            return true;
+        });
+
         if (!isCircularAxis) {
             parsedData.sort((a, b) => a.x - b.x);
         }
 
-        // 3. Circular Axis Transformation
         let transformedData = parsedData;
         let transformedGrouping = groupingData ? JSON.parse(JSON.stringify(groupingData)) : null;
 
@@ -254,7 +312,7 @@ const App: React.FC = () => {
                 const offset = 365;
                 const originalBreakValue = parsedData[breakIndex].x;
                 transformedData = parsedData.map((p, i) => (i >= breakIndex ? { ...p, x: p.x + offset } : p));
-                
+
                 if (transformedGrouping) {
                     transformedGrouping.forEach((g: GroupingData) => {
                         if (g.start >= originalBreakValue) g.start += offset;
@@ -263,9 +321,8 @@ const App: React.FC = () => {
                 }
             }
         }
-        
-        // 4. Outlier Detection
-        const dataToScan = transformedData.filter(p => !confirmedRemovedData.find(rem => rem.originalX === p.originalX && rem.y === p.y));
+
+        const dataToScan = transformedData.filter(p => !confirmedRemovedData.find((rem: Point) => rem.originalX === p.originalX && rem.y === p.y));
         let pendingOutliers = new Set<Point>();
         if(isOutlierRemovalEnabled) {
             const yValues = dataToScan.map(p => p.y);
@@ -290,79 +347,88 @@ const App: React.FC = () => {
                 case OutlierMethod.MOVING_WINDOW_SD: {
                      const windowSize = 10;
                      for (let i = 0; i < dataToScan.length; i++) {
-                        const start = Math.max(0, i - Math.floor(windowSize / 2));
-                        const end = Math.min(dataToScan.length, i + Math.ceil(windowSize / 2));
-                        const window = dataToScan.slice(start, end);
-                        if (window.length < 3) continue;
-                        const windowY = window.map(p => p.y);
-                        const mean = windowY.reduce((a,b) => a+b, 0) / windowY.length;
-                        const stdDev = Math.sqrt(windowY.map(y => Math.pow(y - mean, 2)).reduce((a, b) => a + b, 0) / windowY.length);
-                        if (stdDev > 0 && Math.abs(dataToScan[i].y - mean) > outlierThreshold * stdDev) {
-                            pendingOutliers.add(dataToScan[i]);
-                        }
-                     }
+                         const start = Math.max(0, i - Math.floor(windowSize / 2));
+                         const end = Math.min(dataToScan.length, i + Math.ceil(windowSize / 2));
+                         const window = dataToScan.slice(start, end);
+                         if (window.length < 3) continue;
+                         const windowY = window.map(p => p.y);
+                         const mean = windowY.reduce((a,b) => a+b, 0) / windowY.length;
+                         const stdDev = Math.sqrt(windowY.map(y => Math.pow(y - mean, 2)).reduce((a, b) => a + b, 0) / windowY.length);
+                         if (stdDev > 0 && Math.abs(dataToScan[i].y - mean) > outlierThreshold * stdDev) {
+                             pendingOutliers.add(dataToScan[i]);
+                         }
+                      }
                     break;
                 }
             }
         }
-        
-        // 5. Final Data Sets
+
         const pendingRemovalData = Array.from(pendingOutliers);
-        const keptData = transformedData.filter(p => !confirmedRemovedData.find(rem => rem.originalX === p.originalX && rem.y === p.y));
+        const keptData = transformedData.filter(p => !confirmedRemovedData.find((rem: Point) => rem.originalX === p.originalX && rem.y === p.y));
         const xDomain: [number, number] | null = transformedData.length > 0 ? [Math.min(...transformedData.map(p => p.x)), Math.max(...transformedData.map(p => p.x))] : null;
-        
+
         return { keptData, pendingRemovalData, transformedGrouping, xDomain };
 
-    }, [rawData, selectedXCol, selectedYCol, isDateAxis, isCircularAxis, groupingData, isOutlierRemovalEnabled, outlierMethod, outlierThreshold, confirmedRemovedData]);
+    }, [rawData, selectedXCol, selectedYCol, isDateAxis, isCircularAxis, groupingData, isOutlierRemovalEnabled, outlierMethod, outlierThreshold, confirmedRemovedData, removeZeroValues, removeNaNValues, removeBlankValues]);
+
+    useEffect(() => {
+        if (isDateAxis) {
+            const min = parseDateValue(xAxisMinStr);
+            const max = parseDateValue(xAxisMaxStr);
+            setXAxisMin(min ?? undefined);
+            setXAxisMax(max ?? undefined);
+        } else {
+            setXAxisMin(xAxisMinStr === '' ? undefined : parseFloat(xAxisMinStr));
+            setXAxisMax(xAxisMaxStr === '' ? undefined : parseFloat(xAxisMaxStr));
+        }
+    }, [xAxisMinStr, xAxisMaxStr, isDateAxis]);
 
     const { keptData, pendingRemovalData, transformedGrouping: transformedGroupingData, xDomain } = processedData;
 
     useEffect(() => {
         if (keptData.length > 0 && !hasUserOptimized) {
             const smartParams = estimateSmartParameters(keptData, isDateAxis);
-            setParameters(prev => ({ ...prev, ...smartParams }));
+            setParameters((prev: FitParameters) => ({ ...prev, ...smartParams }));
         }
     }, [keptData, hasUserOptimized, isDateAxis, estimateSmartParameters]);
 
     const calculateFit = useCallback(() => {
         if (keptData.length === 0) { setFittedData([]); setKeyPoints({ sos: null, eos: null, peak: null }); setStats({ r2: 0, rmse: 0 }); return; }
-        
+
         let newFittedData: Point[] = [], yPredicted: number[] = [], newKeyPoints: KeyPoints = { sos: null, eos: null, peak: null };
 
-        // --- Normalization for Date Axis ---
-        const minTimestamp = isDateAxis ? Math.min(...keptData.map(p => p.x)) : 0;
+        const minTimestamp = isDateAxis ? Math.min(...keptData.map((p: Point) => p.x)) : 0;
         const normalizeX = (x: number) => isDateAxis ? (x - minTimestamp) / 86400000 : x;
         const denormalizeX = (x: number) => isDateAxis ? (x * 86400000) + minTimestamp : x;
-        
-        const dataForFit = keptData.map(p => ({...p, x: normalizeX(p.x)}));
+
+        const dataForFit = keptData.map((p: Point) => ({...p, x: normalizeX(p.x)}));
         const paramsForFit = {...parameters};
         if(isDateAxis) {
             paramsForFit.start = normalizeX(parameters.start);
             paramsForFit.end = normalizeX(parameters.end);
             paramsForFit.x0 = normalizeX(parameters.x0);
         }
-        // --- End Normalization ---
 
-        const xRange = dataForFit.map(p => p.x);
+        const xRange = dataForFit.map((p: Point) => p.x);
         const tFit = Array.from({ length: 200 }, (_, i) => Math.min(...xRange) + i * (Math.max(...xRange) - Math.min(...xRange)) / 199);
 
         switch(curveModel) {
             case CurveModel.DOUBLE_LOGISTIC: {
                 newFittedData = tFit.map(t => ({ x: denormalizeX(t), y: doubleLogistic(t, paramsForFit) }));
-                yPredicted = dataForFit.map(p => doubleLogistic(p.x, paramsForFit));
-                if (newFittedData.length > 0) { 
-                    const peak = newFittedData.reduce((max, p) => p.y > max.y ? p : max, newFittedData[0]); 
-                    newKeyPoints = { 
-                        peak, 
-                        sos: { x: denormalizeX(paramsForFit.start), y: doubleLogistic(paramsForFit.start, paramsForFit) }, 
+                yPredicted = dataForFit.map((p: Point) => doubleLogistic(p.x, paramsForFit));
+                if (newFittedData.length > 0) {
+                    const peak = newFittedData.reduce((max, p) => p.y > max.y ? p : max, newFittedData[0]);
+                    newKeyPoints = {
+                        peak,
+                        sos: { x: denormalizeX(paramsForFit.start), y: doubleLogistic(paramsForFit.start, paramsForFit) },
                         eos: { x: denormalizeX(paramsForFit.end), y: doubleLogistic(paramsForFit.end, paramsForFit) }
-                    }; 
+                    };
                 }
                 break;
             }
             case CurveModel.SINGLE_LOGISTIC: {
                 newFittedData = tFit.map(t => ({ x: denormalizeX(t), y: singleLogistic(t, paramsForFit) }));
-                yPredicted = dataForFit.map(p => singleLogistic(p.x, paramsForFit));
+                yPredicted = dataForFit.map((p: Point) => singleLogistic(p.x, paramsForFit));
                 const peakY = newFittedData.reduce((max, p) => Math.max(max, p.y), -Infinity);
                 const peak = newFittedData.find(p => p.y === peakY) || null;
                 newKeyPoints = {peak, sos: newFittedData.find(p => p.y >= paramsForFit.L * 0.1) || null, eos: newFittedData.find(p => p.y >= paramsForFit.L * 0.9) || null };
@@ -376,15 +442,15 @@ const App: React.FC = () => {
         const isParametric = curveModel === CurveModel.DOUBLE_LOGISTIC || curveModel === CurveModel.SINGLE_LOGISTIC;
         if (!isParametric && newFittedData.length > 0) { if (newFittedData.length === keptData.length) yPredicted = newFittedData.map(p => p.y); newKeyPoints = deriveKeyPointsFromSmoothedData(newFittedData); }
         setFittedData(newFittedData); setKeyPoints(newKeyPoints);
-        
-        if (yPredicted.length === keptData.length) { const yObserved = keptData.map(p => p.y); const meanY = yObserved.reduce((a, b) => a + b, 0) / yObserved.length; const ssTot = yObserved.reduce((sum, y) => sum + Math.pow(y - meanY, 2), 0); const ssRes = yObserved.reduce((sum, y, i) => sum + Math.pow(y - yPredicted[i], 2), 0); const r2 = ssTot > 0 ? 1 - (ssRes / ssTot) : 1; const rmse = Math.sqrt(ssRes / yObserved.length); setStats({ r2: isNaN(r2) ? 0 : r2, rmse: isNaN(rmse) ? 0 : rmse });
+
+        if (yPredicted.length === keptData.length) { const yObserved = keptData.map((p: Point) => p.y); const meanY = yObserved.reduce((a: number, b: number) => a + b, 0) / yObserved.length; const ssTot = yObserved.reduce((sum: number, y: number) => sum + Math.pow(y - meanY, 2), 0); const ssRes = yObserved.reduce((sum: number, y: number, i: number) => sum + Math.pow(y - yPredicted[i], 2), 0); const r2 = ssTot > 0 ? 1 - (ssRes / ssTot) : 1; const rmse = Math.sqrt(ssRes / yObserved.length); setStats({ r2: isNaN(r2) ? 0 : r2, rmse: isNaN(rmse) ? 0 : rmse });
         } else { setStats({ r2: 0, rmse: 0 }); }
     }, [keptData, parameters, curveModel, isDateAxis]);
-    
+
     useEffect(() => { calculateFit(); }, [calculateFit]);
 
     const handleApplyOutliers = () => {
-        setConfirmedRemovedData(prev => [...prev, ...pendingRemovalData]);
+        setConfirmedRemovedData((prev: Point[]) => [...prev, ...pendingRemovalData]);
         setIsOutlierRemovalEnabled(false);
     };
     const handleResetOutliers = () => {
@@ -408,31 +474,27 @@ const App: React.FC = () => {
     const handleStyleChange = (newStyle: Partial<LineStyle & MarkerStyle & TextStyle & BackgroundStyle & { grid: GridStyle }>) => {
         const { target, targetIndex } = stylePickerState;
         if (!target) return;
-        
-        setStyles(prevStyles => {
+
+        setStyles((prevStyles: ChartStyles) => {
             const nextStyles = JSON.parse(JSON.stringify(prevStyles));
 
             if (target === 'groupingStyles' && targetIndex !== undefined) {
-                 const { color, ...sharedChanges } = newStyle;
+                const updatedGroupingStyle = { ...nextStyles.groupingStyles[targetIndex] };
+                const updatedGroupingText = { ...nextStyles.groupingText };
 
-                // Apply shared changes to all grouping styles, preserving their original color
-                nextStyles.groupingStyles = nextStyles.groupingStyles.map((style: LineStyle) => ({
-                    ...style,
-                    ...sharedChanges
-                }));
+                if ('strokeWidth' in newStyle) updatedGroupingStyle.strokeWidth = newStyle.strokeWidth as number;
+                if ('strokeDasharray' in newStyle) updatedGroupingStyle.strokeDasharray = newStyle.strokeDasharray as string;
+                if ('opacity' in newStyle) updatedGroupingStyle.opacity = newStyle.opacity as number;
+                if ('color' in newStyle) updatedGroupingStyle.color = newStyle.color as string;
+                if ('fontSize' in newStyle) updatedGroupingText.fontSize = newStyle.fontSize as number;
+                if ('fontWeight' in newStyle) updatedGroupingText.fontWeight = newStyle.fontWeight as 'normal' | 'bold';
+                if ('fontStyle' in newStyle) updatedGroupingText.fontStyle = newStyle.fontStyle as 'normal' | 'italic';
 
-                // Apply the color change only to the one that was clicked, if color was changed
-                if (color !== undefined) {
-                    nextStyles.groupingStyles[targetIndex].color = color;
-                }
-                
-                // If font size is being changed, update the shared text style for all labels
-                if (newStyle.fontSize !== undefined) {
-                    nextStyles.groupingText.fontSize = newStyle.fontSize;
-                }
+                nextStyles.groupingStyles[targetIndex] = updatedGroupingStyle;
+                nextStyles.groupingText = updatedGroupingText;
+
             } else if (target === 'xAxis' || target === 'yAxis') {
-                 nextStyles.xAxis = { ...nextStyles.xAxis, ...newStyle };
-                 nextStyles.yAxis = { ...nextStyles.yAxis, ...newStyle };
+                 nextStyles[target] = { ...nextStyles[target], ...newStyle };
             } else if (target === 'chartBackground') {
                 if ('grid' in newStyle && newStyle.grid) {
                     nextStyles.grid = { ...nextStyles.grid, ...newStyle.grid };
@@ -442,6 +504,10 @@ const App: React.FC = () => {
 
             } else {
                  const key = target as Exclude<StyleTarget, 'groupingStyles' | 'xAxis' | 'yAxis' | 'chartBackground'>;
+                 if (key === 'legend' && 'showGroupingLabels' in newStyle) {
+                    nextStyles.showGroupingLabels = newStyle.showGroupingLabels as boolean;
+                    delete (newStyle as any).showGroupingLabels;
+                 }
                  if (typeof nextStyles[key] === 'object' && nextStyles[key] !== null) {
                     (nextStyles[key] as any) = { ...nextStyles[key], ...newStyle };
                  }
@@ -449,31 +515,29 @@ const App: React.FC = () => {
             return nextStyles;
         });
     };
-    
-    const handleOptimize = async () => { 
+
+    const handleOptimize = async () => {
         const isParametric = curveModel === CurveModel.DOUBLE_LOGISTIC || curveModel === CurveModel.SINGLE_LOGISTIC;
-        if (keptData.length === 0 || !isParametric) return; 
+        if (keptData.length === 0 || !isParametric) return;
         setIsOptimizing(true);
-        try { 
-            // --- Normalization for Date Axis ---
-            const minTimestamp = isDateAxis ? Math.min(...keptData.map(p => p.x)) : 0;
+        try {
+            const minTimestamp = isDateAxis ? Math.min(...keptData.map((p: Point) => p.x)) : 0;
             const normalizeX = (x: number) => isDateAxis ? (x - minTimestamp) / 86400000 : x;
             const denormalizeX = (x: number) => isDateAxis ? (x * 86400000) + minTimestamp : x;
-            
-            const dataForFit = keptData.map(p => ({...p, x: normalizeX(p.x)}));
+
+            const dataForFit = keptData.map((p: Point) => ({...p, x: normalizeX(p.x)}));
             const paramsForFit = {...parameters};
             if(isDateAxis) {
                 paramsForFit.start = normalizeX(parameters.start);
                 paramsForFit.end = normalizeX(parameters.end);
                 paramsForFit.x0 = normalizeX(parameters.x0);
             }
-            // --- End Normalization ---
 
-            const modelFunction = curveModel === CurveModel.DOUBLE_LOGISTIC ? doubleLogistic : singleLogistic; 
-            const paramKeys: (keyof FitParameters)[] = curveModel === CurveModel.DOUBLE_LOGISTIC ? ['baseline', 'amplitude', 'start', 'end', 'growthRate', 'senescenceRate'] : ['L', 'k', 'x0']; 
-            
+            const modelFunction = curveModel === CurveModel.DOUBLE_LOGISTIC ? doubleLogistic : singleLogistic;
+            const paramKeys: (keyof FitParameters)[] = curveModel === CurveModel.DOUBLE_LOGISTIC ? ['baseline', 'amplitude', 'start', 'end', 'growthRate', 'senescenceRate'] : ['L', 'k', 'x0'];
+
             const optimizedNormParams = await optimizeParameters(dataForFit, paramsForFit, modelFunction, paramKeys, lockedParams);
-            
+
             const optimizedDenormParams = {...optimizedNormParams};
             if(isDateAxis) {
                 optimizedDenormParams.start = denormalizeX(optimizedNormParams.start);
@@ -481,17 +545,17 @@ const App: React.FC = () => {
                 optimizedDenormParams.x0 = denormalizeX(optimizedNormParams.x0);
             }
 
-            setParameters(prev => ({...prev, ...optimizedDenormParams})); 
+            setParameters((prev: FitParameters) => ({...prev, ...optimizedDenormParams}));
             setHasUserOptimized(true);
-        } catch (error) { 
-            console.error("Optimization failed:", error); 
-        } finally { 
-            setIsOptimizing(false); 
+        } catch (error) {
+            console.error("Optimization failed:", error);
+        } finally {
+            setIsOptimizing(false);
         }
     };
-    
+
     const toggleParamLock = (param: keyof FitParameters) => {
-        setLockedParams(prev => {
+        setLockedParams((prev: Set<keyof FitParameters>) => {
             const newSet = new Set(prev);
             if (newSet.has(param)) newSet.delete(param);
             else newSet.add(param);
@@ -510,9 +574,7 @@ const App: React.FC = () => {
         try {
             const imageSaved = await downloadChartImage(chartContainerRef.current, chartFileName);
 
-            // If the user cancelled the first download, don't proceed to the second.
             if (!imageSaved) {
-                console.log("Image download cancelled, aborting subsequent downloads.");
                 return;
             }
 
@@ -534,18 +596,19 @@ const App: React.FC = () => {
     };
 
     const handleChartElementClick = (e: any, target: StyleTarget, index?: number) => {
-        const pickerWidth = 256; const pickerHeight = 450; 
+        if (wasDragged.current) { return; }
+        const pickerWidth = 256; const pickerHeight = 450;
         const clickX = e.clientX ?? e.chartX ?? e.nativeEvent?.clientX ?? window.innerWidth / 2;
         const clickY = e.clientY ?? e.chartY ?? e.nativeEvent?.clientY ?? window.innerHeight / 2;
-        
-        const top = Math.min(clickY, window.innerHeight - pickerHeight - 20); 
+
+        const top = Math.min(clickY, window.innerHeight - pickerHeight - 20);
         const left = Math.min(clickX, window.innerWidth - pickerWidth - 20);
         setStylePickerState({ visible: true, top: Math.max(10, top), left: Math.max(10, left), target, targetIndex: index });
     };
 
     const handleDragStart = (e: React.MouseEvent, target: 'legend' | 'groupingLabel' | 'stylePicker', index?: number, dragInfo?: DragInfo) => {
         e.preventDefault();
-        
+        wasDragged.current = false;
         let initialPos: DraggablePosition;
 
         if (target === 'stylePicker') {
@@ -565,43 +628,26 @@ const App: React.FC = () => {
 
     const handleMouseMove = useCallback((e: MouseEvent) => {
         if (!dragState.isDragging || !dragState.target) return;
-        
+        wasDragged.current = true;
+
         const dx = e.clientX - dragState.startX;
         const dy = e.clientY - dragState.startY;
-        const newX = dragState.initialX + dx;
-        const newY = dragState.initialY + dy;
+        let newX = dragState.initialX + dx;
+        let newY = dragState.initialY + dy;
 
         if (dragState.target === 'stylePicker') {
-            setStylePickerState(prev => ({...prev, left: newX, top: newY}));
+            setStylePickerState((prev: Omit<StylePickerState, 'currentStyle'>) => ({...prev, left: newX, top: newY}));
+            return;
+        } else if (dragState.target === 'legend') {
+            setElementPositions(prev => ({...prev, legend: { x: newX, y: newY } }));
             return;
         }
-        
-        setElementPositions(prev => {
-            const newPositions = {...prev};
-            if (dragState.target === 'legend') {
-                newPositions.legend = { x: newX, y: newY };
-            } else if (dragState.target === 'groupingLabel' && dragState.index !== undefined) {
-                let finalX = newX, finalY = newY;
-                if (dragState.dragInfo) {
-                    const { areaBounds, labelBase } = dragState.dragInfo;
-                    const proposedAbsX = labelBase.x + finalX;
-                    const proposedAbsY = labelBase.y + finalY;
-                    const textWidthEstimate = 50;
-                    const minAllowedX = areaBounds.x + textWidthEstimate / 2;
-                    const maxAllowedX = areaBounds.x + areaBounds.width - textWidthEstimate / 2;
-                    const minAllowedY = areaBounds.y;
-                    const maxAllowedY = areaBounds.y + areaBounds.height - 20;
 
-                    const clampedAbsX = Math.max(minAllowedX, Math.min(proposedAbsX, maxAllowedX));
-                    const clampedAbsY = Math.max(minAllowedY, Math.min(proposedAbsY, maxAllowedY));
-                    
-                    finalX = clampedAbsX - labelBase.x;
-                    finalY = clampedAbsY - labelBase.y;
-                } else { 
-                    finalX = dragState.initialX;
-                }
+        setElementPositions((prev: ChartElementPositions) => {
+            const newPositions = {...prev};
+            if (dragState.target === 'groupingLabel' && dragState.index !== undefined) {
                 const newLabels = [...prev.groupingLabels];
-                newLabels[dragState.index] = { x: finalX, y: finalY };
+                newLabels[dragState.index] = { x: newX, y: newY };
                 newPositions.groupingLabels = newLabels;
             }
             return newPositions;
@@ -609,10 +655,25 @@ const App: React.FC = () => {
     }, [dragState]);
 
     const handleMouseUp = useCallback(() => {
-        setDragState(prev => ({...prev, isDragging: false, target: null}));
+        setDragState((prev: DragState) => ({...prev, isDragging: false, target: null}));
+        setTimeout(() => { wasDragged.current = false; }, 50);
     }, []);
 
+    const handleSheetSelect = (sheetName: string) => {
+        if (excelWorkbook) {
+            const data = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[sheetName]);
+            processLoadedData(data);
+            setIsSheetSelectionVisible(false);
+            setExcelWorkbook(null);
+            setSheetNames([]);
+        }
+    };
 
+    const handleSheetSelectionCancel = () => {
+        setIsSheetSelectionVisible(false);
+        setExcelWorkbook(null);
+        setSheetNames([]);
+    };
 
     useEffect(() => {
         if (dragState.isDragging) {
@@ -625,42 +686,68 @@ const App: React.FC = () => {
         }
     }, [dragState.isDragging, handleMouseMove, handleMouseUp]);
 
+    useEffect(() => { setXAxisLabel(selectedXCol || 'X-Axis'); }, [selectedXCol]);
+    useEffect(() => {
+        setYAxisLabel(selectedYCol || 'Y-Axis');
+        setYAxisMin(undefined);
+        setYAxisMax(undefined);
+    }, [selectedYCol]);
 
-    let currentStyleForPicker: Partial<LineStyle & MarkerStyle & TextStyle & BackgroundStyle & { grid: GridStyle }> = {};
+
+    let currentStyleForPicker: Partial<LineStyle & MarkerStyle & TextStyle & BackgroundStyle & LegendStyle & GridStyle & { showGroupingLabels?: boolean }>;
     if (stylePickerState.target) {
         if (stylePickerState.target === 'groupingStyles' && stylePickerState.targetIndex !== undefined) {
             currentStyleForPicker = {
                 ...styles.groupingStyles[stylePickerState.targetIndex],
-                fontSize: styles.groupingText.fontSize,
+                ...styles.groupingText,
             };
         } else if (stylePickerState.target === 'chartBackground') {
             currentStyleForPicker = {
                 ...styles.chartBackground,
                 grid: styles.grid
             }
+        } else if (stylePickerState.target === 'legend') {
+            currentStyleForPicker = {
+                ...styles.legend,
+                showGroupingLabels: styles.showGroupingLabels
+            }
         } else if (stylePickerState.target in styles) {
-            currentStyleForPicker = styles[stylePickerState.target as keyof Omit<ChartStyles, 'groupingStyles'>] || {};
+            currentStyleForPicker = styles[stylePickerState.target as keyof Omit<ChartStyles, 'groupingStyles' | 'showGroupingLabels' | 'groupingText'>] || {};
         }
     }
+
+    const logoSrc = useMemo(() => `${import.meta.env.BASE_URL || '/'}Pheno_Fit_Pro_Logo_2MB.png`, []);
 
 
     return (
         <>
             {isGroupingDialogVisible && <GroupingDialog columns={groupingColumns} onSubmit={handleGroupingConfigSubmit} onCancel={() => setIsGroupingDialogVisible(false)} />}
-            
-            <StylePicker 
+            {isSheetSelectionVisible && (
+                <SheetSelectionDialog
+                    sheetNames={sheetNames}
+                    onSelect={handleSheetSelect}
+                    onCancel={handleSheetSelectionCancel}
+                />
+            )}
+
+            <StylePicker
                 visible={stylePickerState.visible}
                 top={stylePickerState.top}
                 left={stylePickerState.left}
                 target={stylePickerState.target}
                 currentStyle={currentStyleForPicker}
                 onStyleChange={handleStyleChange}
-                onClose={() => setStylePickerState(prev => ({ ...prev, visible: false, target: null }))}
-                onDragStart={(e) => handleDragStart(e, 'stylePicker')}
+                onClose={() => setStylePickerState((prev) => ({ ...prev, visible: false, target: null }))}
+                onDragStart={(e: React.MouseEvent) => handleDragStart(e, 'stylePicker')}
+                xAxisLabel={xAxisLabel}
+                yAxisLabel={yAxisLabel}
+                setXAxisLabel={setXAxisLabel}
+                setYAxisLabel={setYAxisLabel}
             />
 
-            <div className="h-screen w-screen flex flex-col md:flex-row bg-body-bg font-sans">
-                <aside className="w-full md:w-[450px] lg:w-[500px] flex-shrink-0 h-auto md:h-full shadow-lg z-10 bg-panel-bg">
+            <div className="h-screen w-screen flex bg-body-bg font-sans">
+                {/* Left Control Panel */}
+                <aside className="w-[450px] flex-shrink-0 h-full shadow-lg z-20 bg-panel-bg overflow-y-auto">
                     <ControlPanel
                         onFileLoad={handleFileLoad} onGroupingFileLoad={handleGroupingFileLoad}
                         onClearGrouping={handleClearGrouping} onReconfigureGrouping={() => setIsGroupingDialogVisible(true)}
@@ -682,31 +769,116 @@ const App: React.FC = () => {
                         xDomain={xDomain}
                     />
                 </aside>
-                <main ref={mainAreaRef} className="flex-1 flex flex-col items-stretch justify-start min-h-0 min-w-0">
-                 
-					<div ref={chartContainerRef} className="flex-grow flex flex-col items-center justify-center min-h-0 p-4 bg-chart-area-bg">
+                
+                {/* Center Area (Chart + Results) */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    <main ref={mainAreaRef} className="flex-grow w-full flex items-center justify-center relative bg-chart-area-bg p-4 min-h-0">
                         {isDataLoaded ? (
-                            <Chart 
-                                observedData={keptData} pendingRemovalData={pendingRemovalData}
-                                fittedData={fittedData} keyPoints={keyPoints}
-                                groupingData={transformedGroupingData} xCol={selectedXCol || 'X-Axis'} yCol={selectedYCol || 'Y-Axis'}
-                                showKeyPoints={showKeyPoints} styles={styles} positions={elementPositions}
-                                onElementClick={handleChartElementClick} onDragStart={(e, target, index, dragInfo) => handleDragStart(e, target, index, dragInfo)}
-                                isDateAxis={isDateAxis} isCircularAxis={isCircularAxis}
-                            />
+                            <div ref={chartContainerRef} className="w-full h-full">
+                                <Chart
+                                    observedData={keptData}
+                                    pendingRemovalData={pendingRemovalData}
+                                    fittedData={fittedData}
+                                    keyPoints={keyPoints}
+                                    groupingData={transformedGroupingData}
+                                    xCol={selectedXCol}
+                                    yCol={selectedYCol}
+                                    showKeyPoints={showKeyPoints}
+                                    styles={styles}
+                                    positions={elementPositions}
+                                    onElementClick={handleChartElementClick}
+                                    onDragStart={handleDragStart}
+                                    isDateAxis={isDateAxis}
+                                    isCircularAxis={isCircularAxis}
+                                    chartAreaRef={chartContainerRef}
+                                    xAxisLabel={xAxisLabel}
+                                    yAxisLabel={yAxisLabel}
+                                    onAxisLabelClick={(axis) => handleChartElementClick({}, axis === 'x' ? 'xAxis' : 'yAxis')}
+                                    showLegend={showLegend}
+                                    xAxisDomain={[xAxisMin, xAxisMax]}
+                                    yAxisDomain={[yAxisMin, yAxisMax]}
+                                />
+                            </div>
                         ) : (
-                            <div className="text-center text-primary bg-chart-area-bg rounded-lg p-10">
-                            <h2 className="text-2xl font-semibold">Welcome to PhenoFit Pro</h2>
-                            <p className="mt-2 text-muted">Load a data file to begin your analysis.</p>
+                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-20">
+                                <img src={logoSrc} alt="PhenoFit Pro Logo" className="w-48 h-48 mb-4" />
+                                <h2 className="text-2xl font-semibold text-gray-700">Welcome to PhenoFit Pro</h2>
+                                <p className="mt-2 text-muted">Load a data file to begin your analysis.</p>
                             </div>
                         )}
-                    </div>
+                    </main>
                     {isDataLoaded && (
-                        <div className="flex-shrink-0 p-4 pt-0 border-t-2 border-body-bg">
-                            <ResultsPanel stats={stats} keyPoints={keyPoints} onDownload={handleDownload} />
+                        <div className="flex-shrink-0 border-t-2 border-body-bg bg-white">
+                           <ResultsPanel
+                                stats={stats}
+                                keyPoints={keyPoints}
+                                parameters={parameters}
+                                curveModel={curveModel}
+                                isDateAxis={isDateAxis}
+                                isDataLoaded={isDataLoaded}
+                                onDownload={handleDownload}
+                            />
                         </div>
                     )}
-                </main>
+                </div>
+                
+                {/* Right Options Panel */}
+                <div className={`relative h-full overflow-hidden transition-all duration-300 ease-in-out ${isDataLoaded ? '' : 'hidden'} ${isRightPanelOpen ? 'w-[350px]' : 'w-[40px]'}`}>
+                    <div className={`absolute top-0 right-0 w-[350px] bg-panel-bg h-full shadow-lg z-10 overflow-y-auto transition-transform duration-300 ease-in-out ${isRightPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                        <div className="p-4 text-on-panel-primary">
+                            <h3 className="text-lg font-bold mb-4">Chart Options</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="text-md font-semibold mb-2">Data Filtering</h4>
+                                    <div className="flex items-center">
+                                        <input type="checkbox" id="removeZeroValues" checked={removeZeroValues} onChange={e => setRemoveZeroValues(e.target.checked)} className="mr-2" />
+                                        <label htmlFor="removeZeroValues" className="text-on-panel-secondary">Remove 0 values</label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <input type="checkbox" id="removeNaNValues" checked={removeNaNValues} onChange={e => setRemoveNaNValues(e.target.checked)} className="mr-2" />
+                                        <label htmlFor="removeNaNValues" className="text-on-panel-secondary">Remove NaN values</label>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <input type="checkbox" id="removeBlankValues" checked={removeBlankValues} onChange={e => setRemoveBlankValues(e.target.checked)} className="mr-2" />
+                                        <label htmlFor="removeBlankValues" className="text-on-panel-secondary">Remove blank values</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="text-md font-semibold mb-2">Legend</h4>
+                                    <div className="flex items-center">
+                                        <input type="checkbox" id="showLegend" checked={showLegend} onChange={e => setShowLegend(e.target.checked)} className="mr-2" />
+                                        <label htmlFor="showLegend" className="text-on-panel-secondary">Show Legend</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="text-md font-semibold mb-2">Axis Limits</h4>
+                                    <div className="flex flex-col space-y-2">
+                                        <label className="text-on-panel-secondary">X-Axis Min/Max:</label>
+                                        <div className="flex space-x-2">
+                                            <input type="text" value={xAxisMinStr} onChange={e => setXAxisMinStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
+                                            <input type="text" value={xAxisMaxStr} onChange={e => setXAxisMaxStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
+                                            <button onClick={() => { setXAxisMinStr(''); setXAxisMaxStr(''); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                                        </div>
+                                        <label className="text-on-panel-secondary">Y-Axis Min/Max:</label>
+                                        <div className="flex space-x-2">
+                                            <input type="number" value={yAxisMin ?? ''} onChange={e => setYAxisMin(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
+                                            <input type="number" value={yAxisMax ?? ''} onChange={e => setYAxisMax(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
+                                            <button onClick={() => { setYAxisMin(undefined); setYAxisMax(undefined); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                     <div className="absolute top-1/2 -translate-y-1/2 left-0 -translate-x-1/2 z-30">
+                        <button
+                            className="bg-panel-bg p-2 rounded-full shadow-lg focus:outline-none ring-2 ring-white/50"
+                            onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+                        >
+                            <svg className={`w-5 h-5 text-on-panel-primary transition-transform duration-300 ${isRightPanelOpen ? 'rotate-180' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </>
     );

@@ -1,11 +1,9 @@
-
-
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ResponsiveContainer, ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot, Label, ReferenceArea, ReferenceLine, Symbols
 } from 'recharts';
 import { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
-import { Point, KeyPoints, GroupingData, StyleTarget, ChartStyles, ChartElementPositions, DraggablePosition } from '../types';
+import { Point, KeyPoints, GroupingData, StyleTarget, ChartStyles, ChartElementPositions, DraggablePosition, MarkerStyle } from '../types';
 
 interface DraggableComponentProps {
     x?: number;
@@ -50,46 +48,37 @@ interface CustomTooltipComponentProps {
 }
 
 const CustomTooltip: React.FC<CustomTooltipComponentProps> = ({ active, payload, xCol, yCol, isDateAxis }) => {
-    if (active && payload && payload.length) {
-        const dataPoint = payload[0].payload;
-        if (!dataPoint || typeof dataPoint.x === 'undefined' || typeof dataPoint.y === 'undefined') {
-            return null;
-        }
-
-        let xValue: string | number | undefined = dataPoint.originalX;
-        
-        if (xValue === undefined) {
-            if (isDateAxis) {
-                const d = new Date(dataPoint.x);
-                xValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            } else {
-                xValue = dataPoint.x.toFixed(2);
-            }
-        }
-        
-        return (
-            <div className="p-2 bg-panel-bg border border-panel-border rounded-md shadow-lg text-sm font-sans text-on-panel-primary">
-                <p className="font-bold text-accent-blue-on-panel">{payload.find(p => p.name === 'Fitted Curve')?.name || payload[0].name}</p>
-                <p>{`${xCol}: ${xValue}`}</p>
-                <p>{`${yCol}: ${dataPoint.y.toFixed(2)}`}</p>
-            </div>
-        );
-    }
-    return null;
-};
-
-const CustomScatterShape = (props: any) => {
-    const { cx, cy, fill, opacity, shape, size, stroke, strokeWidth, onClick } = props;
-    if (cx === undefined || cy === undefined) return null;
-    const hitboxSize = Math.max(24, size * 2); // Make hitbox large
+    if (!active || !payload || !payload.length) return null;
+    // Filter valid items (Observed, Pending Outliers, Fitted Curve)
+    const validItems = payload.filter(p => p && p.payload && typeof p.payload.x === 'number' && typeof p.payload.y === 'number' && isFinite(p.payload.x) && isFinite(p.payload.y) && (p.name === 'Observed' || p.name === 'Pending Outliers' || p.name === 'Fitted Curve'));
+    if (validItems.length === 0) return null;
     return (
-        <g onClick={onClick} style={{cursor: 'pointer'}}>
-            <circle cx={cx} cy={cy} r={hitboxSize / 2} fill="transparent" />
-            <Symbols cx={cx} cy={cy} type={shape} size={size * size / 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={{opacity, pointerEvents: 'none'}} />
-        </g>
+        <div className="p-2 bg-panel-bg border border-panel-border rounded-md shadow-lg text-sm font-sans text-on-panel-primary">
+            {validItems.map((p, idx) => {
+                let label = p.name;
+                if (label === 'Observed' || label === 'Pending Outliers') label = 'Point';
+                if (label === 'Fitted Curve') label = 'Fitted Line';
+                let xValue: string | number | undefined = p.payload.originalX;
+                if (xValue === undefined) {
+                    if (isDateAxis) {
+                        const d = new Date(p.payload.x);
+                        xValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    } else {
+                        xValue = p.payload.x.toFixed(2);
+                    }
+                }
+                let yLabel = (p.name === 'Fitted Curve') ? `${yCol} (Fitted Value)` : `${yCol} (raw)`;
+                return (
+                    <div key={idx} className="mb-2 last:mb-0">
+                        <p className="font-bold text-accent-blue-on-panel">{label}</p>
+                        <p>{`${xCol}: ${xValue}`}</p>
+                        <p>{`${yLabel}: ${p.payload.y.toFixed(2)}`}</p>
+                    </div>
+                );
+            })}
+        </div>
     );
 };
-
 
 const hexToRgba = (hex: string, opacity: number): string => {
     let c: any;
@@ -119,15 +108,23 @@ interface ChartProps {
   onDragStart: (e: React.MouseEvent, target: 'legend' | 'groupingLabel', index?: number, dragInfo?: any) => void;
   isDateAxis: boolean;
   isCircularAxis: boolean;
+  chartAreaRef: React.RefObject<HTMLDivElement>;
+  xAxisLabel: string;
+  yAxisLabel: string;
+  onAxisLabelClick: (axis: 'x' | 'y') => void;
+  showLegend: boolean;
+  xAxisDomain: (number | undefined)[];
+  yAxisDomain: (number | undefined)[];
+  isDragging: boolean;
 }
 
-const Chart: React.FC<ChartProps> = ({ observedData, pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis }) => {
+const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis, chartAreaRef, xAxisLabel, yAxisLabel, onAxisLabelClick, showLegend, xAxisDomain, yAxisDomain, isDragging }) => {
   const allDataForDomain = [...observedData, ...pendingRemovalData];
   const yDataDomain = allDataForDomain.length > 0 
     ? [Math.min(...allDataForDomain.map(p => p.y)), Math.max(...allDataForDomain.map(p => p.y))]
     : [0, 1];
   const yPadding = (yDataDomain[1] - yDataDomain[0]) * 0.15;
-  const yDomain = [yDataDomain[0] - yPadding, yDataDomain[1] + yPadding];
+  const finalYDomain = [yDataDomain[0] - yPadding, yDataDomain[1] + yPadding];
 
   // Vertical staggering for grouping labels
   const getLabelYOffset = (index: number) => 10 + (index % 4) * 20;
@@ -147,88 +144,281 @@ const Chart: React.FC<ChartProps> = ({ observedData, pendingRemovalData, fittedD
     return Math.round(tick).toString();
   };
 
-  const getBackgroundStyle = () => {
-    const { color = '#ffffff', opacity = 1 } = styles.chartBackground || {};
-    return { background: hexToRgba(color, opacity) };
+  // Legend box size state
+  const [legendSize, setLegendSize] = useState<{width: number, height: number}>({ width: 240, height: 80 });
+  const [isLegendManuallyResized, setIsLegendManuallyResized] = useState(false);
+  const resizing = useRef<boolean | string>(false);
+  const startPos = useRef<{x: number, y: number}>({x: 0, y: 0});
+  const startSize = useRef<{width: number, height: number}>({width: 240, height: 80});
+  const legendRef = useRef<HTMLDivElement>(null);
+
+  // This effect resets the legend to auto-sizing mode whenever the layout is changed.
+  useEffect(() => {
+      setIsLegendManuallyResized(false);
+  }, [styles.legend.layout]);
+
+  const handleResizeMoveDir = (e: MouseEvent) => {
+    if (!resizing.current) return;
+    const dx = e.clientX - startPos.current.x;
+    const dy = e.clientY - startPos.current.y;
+    let { width, height } = startSize.current;
+    let dir = resizing.current as string;
+    if (dir.includes('e')) width = Math.max(120, startSize.current.width + dx);
+    if (dir.includes('s')) height = Math.max(48, startSize.current.height + dy);
+    if (dir.includes('w')) width = Math.max(120, startSize.current.width - dx);
+    if (dir.includes('n')) height = Math.max(48, startSize.current.height - dy);
+    setLegendSize({ width, height });
+  };
+
+  const handleResizeEndDir = () => {
+    resizing.current = false;
+    window.removeEventListener('mousemove', handleResizeMoveDir);
+    window.removeEventListener('mouseup', handleResizeEndDir);
+  };
+
+  // Helper: get resize direction from mouse position
+  function getResizeDir(e: React.MouseEvent, rect: DOMRect) {
+    const edge = 8;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    let dir = '';
+    if (y < edge) dir += 'n';
+    if (y > rect.height - edge) dir += 's';
+    if (x < edge) dir += 'w';
+    if (x > rect.width - edge) dir += 'e';
+    return dir;
+  }
+
+  // Track current resize direction for cursor
+  const [resizeDir, setResizeDir] = useState<string | undefined>(undefined);
+
+  // Mouse move for cursor
+  const handleLegendMouseMove = (e: React.MouseEvent) => {
+    if (!legendRef.current || resizing.current) return;
+    const rect = legendRef.current.getBoundingClientRect();
+    const dir = getResizeDir(e, rect);
+    setResizeDir(dir || undefined);
+  };
+  const handleLegendMouseLeave = () => setResizeDir(undefined);
+
+  // Track drag vs click for legend
+  const dragStartPos = useRef<{x: number, y: number}>({x: 0, y: 0});
+  const wasDragged = useRef(false);
+
+  const handleLegendMouseDown = (e: React.MouseEvent) => {
+    if (!legendRef.current) return;
+    const rect = legendRef.current.getBoundingClientRect();
+    const dir = getResizeDir(e, rect);
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    wasDragged.current = false;
+    
+    if (dir) {
+      resizing.current = dir;
+      setIsLegendManuallyResized(true);
+      startPos.current = { x: e.clientX, y: e.clientY };
+      startSize.current = { width: rect.width, height: rect.height };
+      window.addEventListener('mousemove', handleResizeMoveDir);
+      window.addEventListener('mouseup', handleResizeEndDir);
+      e.stopPropagation();
+    } else {
+      // It's a potential drag
+      onDragStart(e, 'legend');
+    }
+  };
+
+  const handleLegendMouseUp = (e: React.MouseEvent) => {
+    const dx = Math.abs(e.clientX - dragStartPos.current.x);
+    const dy = Math.abs(e.clientY - dragStartPos.current.y);
+    // If it was a small movement and not a resize, treat as a click
+    if (dx < 5 && dy < 5 && !resizing.current) {
+        onElementClick(e, 'legend');
+    }
+    if (dx > 5 || dy > 5) {
+        wasDragged.current = true;
+    }
+    resizing.current = false; // Ensure resizing is reset
+  };
+
+
+
+  
+  const renderCustomLegend = () => {
+    const legendPayload = [];
+    if (observedData.length > 0) legendPayload.push({ value: 'Observed', type: 'scatter', style: styles.observed });
+    if (fittedData.length > 0) legendPayload.push({ value: 'Fitted Curve', type: 'line', style: styles.fitted });
+    groupingData?.forEach((group, index) => { const defaultStyle = { color: '#888', strokeWidth: 2, opacity: 0.7, strokeDasharray: '3 3' }; const style = styles.groupingStyles[index] || styles.groupingStyles[0] || defaultStyle; legendPayload.push({ value: group.label, type: 'group', style }); });
+
+    if (legendPayload.length === 0) return null;
+
+    const legendStyle = styles.legend;
+    let chartWidth = 800, chartHeight = 500;
+    if (chartAreaRef && chartAreaRef.current) {
+      chartWidth = chartAreaRef.current.offsetWidth;
+      chartHeight = chartAreaRef.current.offsetHeight;
+    }
+    
+    const margin = 16;
+    let legendX = positions.legend.x;
+    let legendY = positions.legend.y;
+
+    if (isLegendManuallyResized && legendRef.current) {
+        const rect = legendRef.current.getBoundingClientRect();
+        legendX = Math.max(margin, Math.min(legendX, chartWidth - rect.width - margin));
+        legendY = Math.max(margin, Math.min(legendY, chartHeight - rect.height - margin));
+    } else {
+        legendX = Math.max(margin, legendX);
+        legendY = Math.max(margin, legendY);
+    }
+
+    const finalContainerStyle: React.CSSProperties = {
+        position: 'absolute',
+        top: `${legendY}px`,
+        left: `${legendX}px`,
+        background: hexToRgba(legendStyle.backgroundColor, legendStyle.backgroundOpacity),
+        padding: '5px 10px',
+        border: `1px solid ${hexToRgba(legendStyle.color, 0.2)}`,
+        borderRadius: '8px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        cursor: 'move',
+        zIndex: 20,
+        display: isLegendManuallyResized ? 'flex' : 'inline-flex',
+        width: isLegendManuallyResized ? legendSize.width : 'auto',
+        height: isLegendManuallyResized ? legendSize.height : 'auto',
+        flexDirection: legendStyle.layout === 'vertical' ? 'column' : 'row',
+        flexWrap: legendStyle.layout === 'horizontal' ? 'wrap' : 'nowrap',
+        alignItems: 'flex-start',
+        gap: legendStyle.layout === 'vertical' ? '5px' : '12px',
+        maxWidth: '90%',
+        maxHeight: '60%',
+        overflow: 'auto',
+    };
+
+    const renderLegendIcon = (entry: any) => {
+        const iconSize = legendStyle.iconSize;
+        const style = entry.style;
+
+        if (entry.type === 'scatter') {
+            if (style.shape === 'x') {
+                const halfSize = iconSize / 2;
+                return <path d={`M${halfSize - 4},${halfSize - 4}L${halfSize + 4},${halfSize + 4}M${halfSize + 4},${halfSize - 4}L${halfSize - 4},${halfSize + 4}`} stroke={style.color} strokeWidth={2} style={{ opacity: style.opacity }} />;
+            } else if (style.shape === 'cross') {
+                // This is for the 'plus' sign in recharts
+                return <Symbols cx={iconSize/2} cy={iconSize/2} type="cross" size={iconSize * 4} fill={style.color} style={{ opacity: style.opacity }} />
+            }
+            return <Symbols cx={iconSize/2} cy={iconSize/2} type={style.shape} size={iconSize * 4} fill={style.color} style={{ opacity: style.opacity }} />
+        }
+        if (entry.type === 'line') {
+            return <path d={`M0,${iconSize/2}h${iconSize}`} stroke={style.color} strokeWidth={3} strokeDasharray={style.strokeDasharray === '0' ? undefined : style.strokeDasharray} style={{ opacity: style.opacity }} />
+        }
+        if (entry.type === 'group') {
+            return <path d={`M0,${iconSize/2}h${iconSize}`} stroke={style.color} strokeWidth={3} style={{ opacity: style.opacity }} />
+        }
+        return null;
+    }
+
+    return (
+        <div
+            ref={legendRef}
+            onMouseDown={handleLegendMouseDown}
+            onMouseUp={handleLegendMouseUp}
+            onMouseMove={handleLegendMouseMove}
+            onMouseLeave={handleLegendMouseLeave}
+            onDoubleClick={(e) => onElementClick(e, 'legend')}
+            style={{
+                ...finalContainerStyle,
+                cursor: (typeof resizeDir === 'string' && resizeDir.length > 0)
+                  ? (resizeDir === 'n' || resizeDir === 's' ? 'ns-resize'
+                    : resizeDir === 'e' || resizeDir === 'w' ? 'ew-resize'
+                    : resizeDir === 'ne' || resizeDir === 'sw' ? 'nesw-resize'
+                    : resizeDir === 'nw' || resizeDir === 'se' ? 'nwse-resize'
+                    : 'move')
+                  : 'move',
+            }}
+            className="legend-resize-hover"
+        >
+            {legendPayload.map((entry, index) => (
+                <div key={`item-${index}`} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <svg width={legendStyle.iconSize} height={legendStyle.iconSize} viewBox={`0 0 ${legendStyle.iconSize} ${legendStyle.iconSize}`} style={{ marginRight: '5px', flexShrink: 0 }}>
+                       {renderLegendIcon(entry)}
+                    </svg>
+                    <span style={{ color: legendStyle.color, fontSize: legendStyle.fontSize, fontWeight: legendStyle.fontWeight, fontStyle: legendStyle.fontStyle, whiteSpace: 'nowrap' }} title={String(entry.value)}>
+                        {String(entry.value)}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+  };
+
+  const renderMarker = (props: any, style: MarkerStyle, clickHandler: (e: any) => void) => {
+      const { cx, cy } = props;
+      const { shape, size, color, opacity } = style;
+      if (cx === undefined || cy === undefined) return null;
+
+      const renderSymbol = () => {
+          if (shape === 'x') {
+              const halfSize = size / 1.5;
+              return <path d={`M${cx - halfSize},${cy - halfSize}L${cx + halfSize},${cy + halfSize}M${cx + halfSize},${cy - halfSize}L${cx - halfSize},${cy + halfSize}`} stroke={color} strokeWidth={2} style={{ opacity, pointerEvents: 'none' }} />;
+          } else if (shape === 'cross') {
+              // This is for the 'plus' sign in recharts
+              return <Symbols cx={cx} cy={cy} type="cross" size={size * size} fill={color} style={{ opacity, pointerEvents: 'none' }} />;
+          }
+          return <Symbols cx={cx} cy={cy} type={shape} size={size * size} fill={color} style={{ opacity, pointerEvents: 'none' }} />;
+      };
+
+      const hitboxSize = Math.max(24, size * 2);
+      return (
+          <g onClick={clickHandler} style={{ cursor: 'pointer' }}>
+              <circle cx={cx} cy={cy} r={hitboxSize / 2} fill="transparent" />
+              {renderSymbol()}
+          </g>
+      );
   };
 
   return (
-    <div className="w-full h-full p-4 rounded-lg" style={getBackgroundStyle()} onClick={(e) => {
+    <div
+      className="w-full h-full p-4 rounded-lg relative"
+      style={{ background: hexToRgba(styles.chartBackground.color, styles.chartBackground.opacity) }}
+      onDoubleClick={(e) => {
         const target = e.target as HTMLElement;
         if(target.classList.contains('recharts-surface') || target.classList.contains('recharts-responsive-container')) onElementClick(e, 'chartBackground')
-    }}>
+      }}
+      onMouseLeave={() => {}}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart margin={{ top: 20, right: 30, left: 40, bottom: 30 }}>
           {styles.grid.visible && <CartesianGrid strokeDasharray={styles.grid.strokeDasharray} strokeOpacity={0.4} stroke={styles.grid.color} />}
           <XAxis 
-            type="number" dataKey="x" name={xCol} domain={['dataMin', 'dataMax']}
+            type="number" dataKey="x" name={xCol} domain={[xAxisDomain[0] ?? 'dataMin', xAxisDomain[1] ?? 'dataMax']}
             tick={{ ...styles.xAxis, fill: styles.xAxis.color }} stroke={styles.xAxis.color} tickFormatter={formatXAxisTick}
             onClick={(e: any) => onElementClick(e, 'xAxis')} height={60}
+            allowDataOverflow={true}
           >
-            <Label value={xCol} offset={-5} position="insideBottom" style={{ ...styles.xAxis, fill: styles.xAxis.color, cursor: 'pointer' }} />
+            <Label value={xAxisLabel} offset={-5} position="insideBottom" style={{ ...styles.xAxis, fill: styles.xAxis.color, cursor: 'pointer' }} onClick={() => onAxisLabelClick('x')} />
           </XAxis>
           <YAxis 
-            type="number" dataKey="y" name={yCol} domain={yDomain}
+            type="number" dataKey="y" name={yCol} domain={[yAxisDomain[0] ?? 'dataMin', yAxisDomain[1] ?? 'dataMax']}
             tick={{ ...styles.yAxis, fill: styles.yAxis.color }} stroke={styles.yAxis.color} tickFormatter={(tick) => tick.toFixed(2)}
             onClick={(e: any) => onElementClick(e, 'yAxis')} width={80}
+            allowDataOverflow={true}
           >
-             <Label value={yCol} angle={-90} offset={-25} position="insideLeft" style={{ ...styles.yAxis, textAnchor: 'middle', fill: styles.yAxis.color, cursor: 'pointer' }}/>
+             <Label value={yAxisLabel} angle={-90} offset={-25} position="insideLeft" style={{ ...styles.yAxis, textAnchor: 'middle', fill: styles.yAxis.color, cursor: 'pointer' }} onClick={() => onAxisLabelClick('y')} />
           </YAxis>
-          <Tooltip content={<CustomTooltip xCol={xCol} yCol={yCol} isDateAxis={isDateAxis} />} cursor={{ stroke: '#9ca3af', strokeDasharray: '3 3' }} />
           
-           <Legend 
-            content={(props: any) => {
-                if (!props.viewBox) return null;
-                const {payload, viewBox} = props;
-                const legendX = (viewBox.x ?? 0);
-                const legendY = (viewBox.y ?? 0) - 20;
-                const filteredPayload = payload?.filter((p: any) => p.value !== 'Outliers' && p.value !== 'Pending Outliers');
-
-                return (
-                    <DraggableWrapper 
-                        x={legendX} y={legendY}
-                        onDragStart={(e) => onDragStart(e, 'legend')} 
-                        position={positions.legend}>
-                         <foreignObject x={0} y={0} width={300} height={50}>
-                             <div
-                                style={{
-                                    background: 'rgba(255, 255, 255, 0.85)',
-                                    padding: '5px 10px',
-                                    border: '1px solid #dee2e6',
-                                    borderRadius: '5px',
-                                    display: 'inline-block'
-                                }}
-                                onClick={(e: any) => onElementClick(e, 'legend')}
-                             >
-                                <ul className="recharts-default-legend" style={{...styles.legend}}>
-                                   {filteredPayload?.map((entry: any, index: number) => (
-                                        <li key={`item-${index}`} className="recharts-legend-item" style={{display: 'inline-block', marginRight: '10px'}}>
-                                            <svg className="recharts-surface" width="14" height="14" viewBox="0 0 32 32" style={{display: 'inline-block', verticalAlign: 'middle', marginRight: '4px'}}>
-                                                <path stroke="none" fill={entry.color} d="M0,4h32v24h-32z" className="recharts-legend-icon"></path>
-                                            </svg>
-                                            <span className="recharts-legend-item-text" style={{color: styles.legend.color}}>{String(entry.value)}</span>
-                                        </li>
-                                   ))}
-                                </ul>
-                            </div>
-                        </foreignObject>
-                    </DraggableWrapper>
-                )
-            }}
-            />
+          {/* Legend is now rendered outside the ComposedChart */}
           
           {groupingData?.map((group, index) => {
               const groupStyle = styles.groupingStyles[index] || styles.groupingStyles[0];
               const textStyle = styles.groupingText;
-              
+              const hasLabel = typeof group.label === 'string' && group.label.trim() !== '';
               if (group.end != null) {
                   return (
                       <ReferenceArea key={`group-${index}`} x1={group.start} x2={group.end}
                           stroke={groupStyle.color} fill={groupStyle.color} fillOpacity={groupStyle.opacity}
                           strokeOpacity={groupStyle.opacity} strokeDasharray={groupStyle.strokeDasharray}
                           onClick={(e) => onElementClick(e, 'groupingStyles', index)} 
-                          label={(props) => {
-                              if (!props.viewBox || !props.viewBox.x || !props.viewBox.y) return null;
+                          label={hasLabel && styles.showGroupingLabels ? (props: any) => {
+                              if (!props.viewBox || !props.viewBox.x || !props.viewBox.y) return <></>;
                               const { x, y, width, height } = props.viewBox;
                               const labelX = x + width / 2;
                               const labelY = y + 20; // Initial position inside the area
@@ -237,21 +427,19 @@ const Chart: React.FC<ChartProps> = ({ observedData, pendingRemovalData, fittedD
                                     <text textAnchor="middle" style={{ ...textStyle, fill: textStyle.color, fontSize: `${textStyle.fontSize}px` }}>{String(group.label)}</text>
                                 </DraggableWrapper>
                               )
-                          }}
+                          } : undefined}
                         />
                   )
               }
               return (
                 <React.Fragment key={`group-${index}`}>
-                    {/* Hitbox for line */}
                     <ReferenceLine x={group.start} stroke="transparent" strokeWidth={20}
                         onClick={(e) => onElementClick(e, 'groupingStyles', index)} 
                     />
-                    {/* Visible Line */}
                     <ReferenceLine x={group.start} stroke={groupStyle.color}
                         strokeDasharray={groupStyle.strokeDasharray} strokeWidth={groupStyle.strokeWidth} opacity={groupStyle.opacity}
-                        label={(props) => {
-                            if (!props.viewBox || !props.viewBox.x) return null;
+                        label={hasLabel && styles.showGroupingLabels ? (props: any) => {
+                            if (!props.viewBox || !props.viewBox.x) return <></>;
                             const { x } = props.viewBox;
                             const labelY = getLabelYOffset(index);
                             return (
@@ -259,49 +447,82 @@ const Chart: React.FC<ChartProps> = ({ observedData, pendingRemovalData, fittedD
                                     <text textAnchor="middle" style={{...textStyle, fill: textStyle.color, fontSize: `${textStyle.fontSize}px`}}>{String(group.label)}</text>
                                 </DraggableWrapper>
                             )
-                        }}
+                        } : undefined}
                      />
                 </React.Fragment>
               )
           })}
 
-          <Scatter name="Observed" data={observedData} dataKey="y"
-            shape={<CustomScatterShape {...styles.observed} onClick={(e: any) => onElementClick(e, 'observed')} />}
-            isAnimationActive={false}/>
+          <Scatter
+            name="Observed"
+            data={observedData}
+            dataKey="y"
+            isAnimationActive={false}
+            shape={(props) => renderMarker(props, styles.observed, (e) => onElementClick(e, 'observed'))}
+          />
+          <Scatter
+            name="Pending Outliers"
+            data={pendingRemovalData}
+            dataKey="y"
+            isAnimationActive={false}
+            shape={(props) => renderMarker(props, styles.pendingOutliers, (e) => onElementClick(e, 'pendingOutliers'))}
+          />
           
-          <Scatter name="Pending Outliers" data={pendingRemovalData} dataKey="y"
-            shape={<CustomScatterShape {...styles.pendingOutliers} stroke={styles.pendingOutliers.color} strokeWidth={2} fill="transparent" onClick={(e: any) => onElementClick(e, 'pendingOutliers')} />}
-            isAnimationActive={false}/>
-          
-          {fittedData.length > 0 && (
-            <>
-              {/* Invisible line for easier clicking */}
-              <Line name="Fitted Curve Hit Area" data={fittedData} dataKey="y"
-                  stroke="transparent" strokeWidth={30}
-                  activeDot={false} dot={false}
-                  isAnimationActive={false}
-                  onClick={(e: any) => onElementClick(e, 'fitted')}
-                  connectNulls={true}
-              />
-              {/* Visible line */}
-              <Line name="Fitted Curve" data={fittedData} dataKey="y"
-                type="monotoneX"
-                stroke={styles.fitted.color} 
-                strokeWidth={styles.fitted.strokeWidth} 
-                strokeDasharray={styles.fitted.strokeDasharray === '0' ? undefined : styles.fitted.strokeDasharray} 
-                strokeOpacity={styles.fitted.opacity}
-                dot={false}
-                isAnimationActive={false}
-                connectNulls={true}
-              />
-            </>
+          {fittedData.length > 1 && (
+            <Line
+              name="Fitted Curve Hitbox"
+              data={fittedData}
+              dataKey="y"
+              type="monotoneX"
+              stroke="transparent"
+              strokeWidth={20}
+              dot={false}
+              isAnimationActive={false}
+              connectNulls={true}
+              onClick={(e) => onElementClick(e, 'fitted')}
+              style={{ cursor: 'pointer' }}
+            />
           )}
+          
+          <Line
+            name="Fitted Curve"
+            data={fittedData}
+            dataKey="y"
+            type="monotoneX"
+            stroke={styles.fitted.color}
+            strokeWidth={styles.fitted.strokeWidth}
+            strokeDasharray={styles.fitted.strokeDasharray === '0' ? undefined : styles.fitted.strokeDasharray}
+            strokeOpacity={styles.fitted.opacity}
+            dot={false}
+            isAnimationActive={false}
+            connectNulls={true}
+          />
 
           {showKeyPoints && keyPoints.sos && (<ReferenceDot x={keyPoints.sos.x} y={keyPoints.sos.y} r={6} fill="#28a745" stroke="white" strokeWidth={2}><Label value="SOS" position="top" fill="#212529" fontSize={12} fontWeight="bold" /></ReferenceDot>)}
           {showKeyPoints && keyPoints.eos && (<ReferenceDot x={keyPoints.eos.x} y={keyPoints.eos.y} r={6} fill="#ffc107" stroke="white" strokeWidth={2}><Label value="EOS" position="top" fill="#212529" fontSize={12} fontWeight="bold" /></ReferenceDot>)}
           {showKeyPoints && keyPoints.peak && (<ReferenceDot x={keyPoints.peak.x} y={keyPoints.peak.y} r={6} fill="#dc3545" stroke="white" strokeWidth={2}><Label value="Peak" position="top" fill="#212529" fontSize={12} fontWeight="bold" /></ReferenceDot>)}
         </ComposedChart>
       </ResponsiveContainer>
+      
+      <div style={{position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none'}}>
+        <div
+          style={{position: 'absolute', left: 60, right: 40, bottom: 24, height: 40, cursor: 'pointer', pointerEvents: 'auto', zIndex: 10}}
+          onClick={(e) => { e.stopPropagation(); onElementClick(e, 'xAxis'); }}
+        />
+        <div
+          style={{position: 'absolute', left: 0, top: 40, width: 40, bottom: 40, cursor: 'pointer', pointerEvents: 'auto', zIndex: 10}}
+          onClick={(e) => { e.stopPropagation(); onElementClick(e, 'yAxis'); }}
+        />
+        <div
+          style={{position: 'absolute', left: 120, right: 120, bottom: 0, height: 32, cursor: 'pointer', pointerEvents: 'auto', zIndex: 20}}
+          onClick={(e) => { e.stopPropagation(); onAxisLabelClick('x'); }}
+        />
+        <div
+          style={{position: 'absolute', left: 0, top: '50%', width: 40, height: 40, transform: 'translateY(-50%)', cursor: 'pointer', pointerEvents: 'auto', zIndex: 20}}
+          onClick={(e) => { e.stopPropagation(); onAxisLabelClick('y'); }}
+        />
+      </div>
+      {showLegend && renderCustomLegend()}
     </div>
   );
 };

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<link rel="icon" type="image/png" href="/PhenoFit-Pro/fevicon_pheno_fit_pro.png" />
+	<link rel="icon" type="image/png" href="/fevicon_pheno_fit_pro.png" />
     <title>PhenoFit Pro</title>
     <style>
       /* Using a direct link is more robust for some environments */
@@ -18,23 +18,18 @@
               sans: ['Lato', 'sans-serif'],
             },
             colors: {
-              // Light theme (main area)
               'body-bg': '#f0f2f5',
               'chart-area-bg': '#ffffff',
               'primary': '#212529',
               'secondary': '#0056b3',
               'muted': '#6c757d',
-              
-              // Dark theme (panels)
-              'panel-bg': '#2d3748', // Dark slate grey
+              'panel-bg': '#2d3748', 
               'panel-border': '#4a5568',
-              'on-panel-primary': '#f7fafc', // Off-white
-              'on-panel-secondary': '#a0aec0', // Light grey for secondary text
-              'on-panel-muted': '#718096', // Muted grey
+              'on-panel-primary': '#f7fafc', 
+              'on-panel-secondary': '#a0aec0', 
+              'on-panel-muted': '#718096',
               'item-bg-on-panel': '#4a5568',
               'item-hover-on-panel': '#2c3e50',
-
-              // Accents
               'accent-blue': '#007bff',
               'accent-blue-on-panel': '#3498db',
               'accent-green': '#28a745',
@@ -42,30 +37,28 @@
               'accent-yellow': '#ffc107',
               'accent-pink': '#d63384',
               'outlier': '#ef4444',
-              'outlier-pending': '#f97316', // Orange for pending removal
+              'outlier-pending': '#f97316',
             }
           }
         }
       }
     </script>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.1.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "react/": "https://esm.sh/react@^19.1.0/",
-    "recharts": "https://esm.sh/recharts@^3.1.0",
-    "recharts/": "https://esm.sh/recharts@^3.1.0/",
-    "papaparse": "https://esm.sh/papaparse@^5.5.3",
-    "xlsx": "https://esm.sh/xlsx@^0.18.5",
-    "html-to-image": "https://esm.sh/html-to-image@^1.11.11",
-    "react-colorful": "https://esm.sh/react-colorful@^5.6.1"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
-  <body class="bg-body-bg font-sans">
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.0-beta-26f24929c-20240719",
+          "react-dom/": "https://esm.sh/react-dom@19.1.0-beta-26f24929c-20240719/",
+          "recharts": "https://esm.sh/recharts@^3.1.0",
+          "recharts/": "https://esm.sh/recharts@^3.1.0/",
+          "papaparse": "https://esm.sh/papaparse@^5.5.3",
+          "xlsx": "https://esm.sh/xlsx@^0.18.5",
+          "html-to-image": "https://esm.sh/html-to-image@^1.11.11",
+          "react-colorful": "https://esm.sh/react-colorful@^5.6.1"
+        }
+      }
+    </script>
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
