@@ -198,8 +198,7 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
         {tabs.map(tab => (
           <button
             key={tab.key}
-            className={`px-3 py-1 text-sm font-semibold rounded-t-md focus:outline-none ${active === tab.key ? 'bg-panel-bg text-on-panel-primary border-x border-t border-panel-border -mb-px' : 'bg-item-bg-on-panel text-on-panel-muted'}`}
-            style={{ minWidth: 80 }}
+            className={`flex-1 px-4 py-2 text-sm font-semibold rounded-t-md focus:outline-none text-center ${active === tab.key ? 'bg-panel-bg text-on-panel-primary border-x border-t border-panel-border -mb-px' : 'bg-item-bg-on-panel text-on-panel-muted'}`}
             onClick={() => onChange(tab.key)}
           >
             {tab.label}
@@ -396,18 +395,18 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
     return (
         <div 
             ref={pickerRef} 
-            className="fixed z-50 bg-panel-bg border border-panel-border rounded-lg shadow-2xl w-64 font-sans text-on-panel-primary"
-            style={{ top, left }}
+            className="fixed z-50 bg-panel-bg border border-panel-border rounded-lg shadow-2xl w-64 font-sans text-on-panel-primary flex flex-col"
+            style={{ top, left, maxHeight: 'calc(100vh - 20px)' }} // Set max height
             onClick={(e) => e.stopPropagation()}
         >
             <div 
-                className="p-2 drag-handle" 
+                className="p-2 drag-handle flex-shrink-0" 
                 style={{cursor: 'move'}}
                 onMouseDown={onDragStart}
             >
                 <h4 className="text-sm font-semibold text-center text-accent-blue-on-panel capitalize select-none">{targetName}</h4>
             </div>
-            <div className="p-4 pt-2 space-y-4">
+            <div className="flex-grow p-4 pt-2 space-y-4 overflow-y-auto"> {/* Add overflow-y-auto */}
                 {tabbedContent}
             </div>
         </div>
