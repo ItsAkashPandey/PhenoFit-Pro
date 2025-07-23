@@ -98,6 +98,12 @@ const App: React.FC = () => {
     const [xAxisMaxStr, setXAxisMaxStr] = useState('');
 
     const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+    const [legendSize, setLegendSize] = useState({ width: 240, height: 80 });
+    const [isLegendManuallyPositioned, setIsLegendManuallyPositioned] = useState(false);
+
+    const handleLegendSizeChange = useCallback((size: { width: number; height: number }) => {
+        setLegendSize(size);
+    }, []);
 
     // Excel Sheet Selection State
     const [isSheetSelectionVisible, setIsSheetSelectionVisible] = useState(false);
@@ -133,6 +139,7 @@ const App: React.FC = () => {
     const [dragState, setDragState] = useState<DragState>({isDragging: false, target: null, startX: 0, startY: 0, initialX: 0, initialY: 0});
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const mainAreaRef = useRef<HTMLDivElement>(null);
+    const resultsPanelRef = useRef<HTMLDivElement>(null);
     const wasDragged = useRef(false);
 
     // Loading State
@@ -563,16 +570,29 @@ const App: React.FC = () => {
         });
     };
 
-    const handleDownload = async () => {
-        if (!chartContainerRef.current) return;
+        const handleDownload = async () => {
+        if (!chartContainerRef.current || !mainAreaRef.current) return;
 
         const yColName = selectedYCol || 'Y';
         const modelName = curveModel;
         const excelFileName = `phenofit-results-${yColName}-(${modelName}).xlsx`;
         const chartFileName = `phenofit-chart-${yColName}-(${modelName}).png`;
 
+        // Determine which element to capture
+        const chartRect = chartContainerRef.current.getBoundingClientRect();
+        const legendPos = elementPositions.legend;
+        const { width: legendW, height: legendH } = legendSize;
+
+        const isLegendInsideChart = 
+            legendPos.x >= 0 &&
+            legendPos.y >= 0 &&
+            (legendPos.x + legendW) <= chartRect.width &&
+            (legendPos.y + legendH) <= chartRect.height;
+
+        const elementToCapture = isLegendInsideChart ? chartContainerRef.current : mainAreaRef.current;
+
         try {
-            const imageSaved = await downloadChartImage(chartContainerRef.current, chartFileName);
+            const imageSaved = await downloadChartImage(elementToCapture, chartFileName);
 
             if (!imageSaved) {
                 return;
@@ -638,7 +658,22 @@ const App: React.FC = () => {
         if (dragState.target === 'stylePicker') {
             setStylePickerState((prev: Omit<StylePickerState, 'currentStyle'>) => ({...prev, left: newX, top: newY}));
             return;
-        } else if (dragState.target === 'legend') {
+        }
+        if (dragState.target === 'legend') {
+            const chartRect = chartContainerRef.current?.getBoundingClientRect();
+            const mainRect = mainAreaRef.current?.getBoundingClientRect();
+
+            if (chartRect && mainRect) {
+                // Constrain the legend's absolute position within the main background area.
+                // The legend's own position (newX, newY) is relative to the chart container.
+                const minX = mainRect.left - chartRect.left;
+                const maxX = mainRect.right - chartRect.left - legendSize.width;
+                const minY = mainRect.top - chartRect.top;
+                const maxY = mainRect.bottom - chartRect.top - legendSize.height;
+
+                newX = Math.max(minX, Math.min(newX, maxX));
+                newY = Math.max(minY, Math.min(newY, maxY));
+            }
             setElementPositions(prev => ({...prev, legend: { x: newX, y: newY } }));
             return;
         }
@@ -692,6 +727,25 @@ const App: React.FC = () => {
         setYAxisMin(undefined);
         setYAxisMax(undefined);
     }, [selectedYCol]);
+
+    // Effect to dynamically position the legend based on right panel state
+    useEffect(() => {
+        if (!isLegendManuallyPositioned && chartContainerRef.current) {
+            const chartRect = chartContainerRef.current.getBoundingClientRect();
+            let newX, newY;
+
+            if (isRightPanelOpen) {
+                // Position inside chart area (e.g., top-right corner with some padding)
+                newX = chartRect.width - legendSize.width - 20; // 20px padding from right
+                newY = 20; // 20px padding from top
+            } else {
+                // Position to the right of the chart area
+                newX = chartRect.width + 20; // 20px padding from chart right edge
+                newY = 20; // Align with top of chart
+            }
+            setElementPositions(prev => ({ ...prev, legend: { x: newX, y: newY } }));
+        }
+    }, [isRightPanelOpen, isLegendManuallyPositioned, legendSize, chartContainerRef]);
 
 
     let currentStyleForPicker: Partial<LineStyle & MarkerStyle & TextStyle & BackgroundStyle & LegendStyle & GridStyle & { showGroupingLabels?: boolean }>;
@@ -774,30 +828,36 @@ const App: React.FC = () => {
                 <div className="flex-1 flex flex-col min-w-0">
                     <main ref={mainAreaRef} className="flex-grow w-full flex items-center justify-center relative bg-chart-area-bg p-4 min-h-0">
                         {isDataLoaded ? (
-                            <div ref={chartContainerRef} className="w-full h-full">
-                                <Chart
-                                    observedData={keptData}
-                                    pendingRemovalData={pendingRemovalData}
-                                    fittedData={fittedData}
-                                    keyPoints={keyPoints}
-                                    groupingData={transformedGroupingData}
-                                    xCol={selectedXCol}
-                                    yCol={selectedYCol}
-                                    showKeyPoints={showKeyPoints}
-                                    styles={styles}
-                                    positions={elementPositions}
-                                    onElementClick={handleChartElementClick}
-                                    onDragStart={handleDragStart}
-                                    isDateAxis={isDateAxis}
-                                    isCircularAxis={isCircularAxis}
-                                    chartAreaRef={chartContainerRef}
-                                    xAxisLabel={xAxisLabel}
-                                    yAxisLabel={yAxisLabel}
-                                    onAxisLabelClick={(axis) => handleChartElementClick({}, axis === 'x' ? 'xAxis' : 'yAxis')}
-                                    showLegend={showLegend}
-                                    xAxisDomain={[xAxisMin, xAxisMax]}
-                                    yAxisDomain={[yAxisMin, yAxisMax]}
-                                />
+                            <div className="w-[700px] h-[700px] flex-shrink-0">
+                                <div ref={chartContainerRef} className="w-full h-full relative">
+                                    <Chart
+                                        observedData={keptData}
+                                        pendingRemovalData={pendingRemovalData}
+                                        fittedData={fittedData}
+                                        keyPoints={keyPoints}
+                                        groupingData={transformedGroupingData}
+                                        xCol={selectedXCol}
+                                        yCol={selectedYCol}
+                                        showKeyPoints={showKeyPoints}
+                                        styles={styles}
+                                        positions={elementPositions}
+                                        onElementClick={handleChartElementClick}
+                                        onDragStart={handleDragStart}
+                                        isDateAxis={isDateAxis}
+                                        isCircularAxis={isCircularAxis}
+                                        chartAreaRef={chartContainerRef}
+                                        xAxisLabel={xAxisLabel}
+                                        yAxisLabel={yAxisLabel}
+                                        onAxisLabelClick={(axis) => handleChartElementClick({}, axis === 'x' ? 'xAxis' : 'yAxis')}
+                                        showLegend={showLegend}
+                                        xAxisDomain={[xAxisMin, xAxisMax]}
+                                        yAxisDomain={[yAxisMin, yAxisMax]}
+                                        onLegendSizeChange={handleLegendSizeChange}
+                                        isRightPanelOpen={isRightPanelOpen}
+                                        isLegendManuallyPositioned={isLegendManuallyPositioned}
+                                        setIsLegendManuallyPositioned={setIsLegendManuallyPositioned}
+                                    />
+                                </div>
                             </div>
                         ) : (
                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-20">
@@ -810,6 +870,7 @@ const App: React.FC = () => {
                     {isDataLoaded && (
                         <div className="flex-shrink-0 border-t-2 border-body-bg bg-white">
                            <ResultsPanel
+                                ref={resultsPanelRef}
                                 stats={stats}
                                 keyPoints={keyPoints}
                                 parameters={parameters}
@@ -823,9 +884,9 @@ const App: React.FC = () => {
                 </div>
                 
                 {/* Right Options Panel */}
-                <div className={`relative h-full overflow-hidden transition-all duration-300 ease-in-out ${isDataLoaded ? '' : 'hidden'} ${isRightPanelOpen ? 'w-[350px]' : 'w-[40px]'}`}>
-                    <div className={`absolute top-0 right-0 w-[350px] bg-panel-bg h-full shadow-lg z-10 overflow-y-auto transition-transform duration-300 ease-in-out ${isRightPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                        <div className="p-4 text-on-panel-primary">
+                <div className={`relative h-full bg-panel-bg transition-all duration-300 ease-in-out ${isDataLoaded ? '' : 'hidden'} ${isRightPanelOpen ? 'w-[350px]' : 'w-[40px]'} shadow-lg z-10 overflow-hidden`}>
+                    {isRightPanelOpen && (
+                        <div className="p-4 text-on-panel-primary h-full overflow-y-auto">
                             <h3 className="text-lg font-bold mb-4">Chart Options</h3>
                             <div className="space-y-4">
                                 <div>
@@ -869,16 +930,23 @@ const App: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                     <div className="absolute top-1/2 -translate-y-1/2 left-0 -translate-x-1/2 z-30">
+                    )}
+                    
+                </div>
+                {/* Collapse Button for Right Panel */}
+                {isDataLoaded && (
+                    <div className={`absolute top-1/2 -translate-y-1/2 z-40 transition-all duration-300 ease-in-out`} style={{ right: isRightPanelOpen ? '335px' : '25px' }}>
                         <button
                             className="bg-panel-bg p-2 rounded-full shadow-lg focus:outline-none ring-2 ring-white/50"
                             onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
                         >
-                            <svg className={`w-5 h-5 text-on-panel-primary transition-transform duration-300 ${isRightPanelOpen ? 'rotate-180' : 'rotate-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                            <svg className={`w-5 h-5 text-on-panel-primary transition-transform duration-300 ${isRightPanelOpen ? 'rotate-180' : ''}`}
+                                 fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
                         </button>
                     </div>
-                </div>
+                )}
             </div>
         </>
     );
