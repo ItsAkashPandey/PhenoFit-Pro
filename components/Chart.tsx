@@ -116,9 +116,12 @@ interface ChartProps {
   xAxisDomain: (number | undefined)[];
   yAxisDomain: (number | undefined)[];
   isDragging: boolean;
+  onLegendSizeChange: (size: { width: number; height: number }) => void;
+  isRightPanelOpen: boolean;
+  setIsLegendManuallyPositioned: (isManuallyPositioned: boolean) => void;
 }
 
-const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis, chartAreaRef, xAxisLabel, yAxisLabel, onAxisLabelClick, showLegend, xAxisDomain, yAxisDomain, isDragging }) => {
+const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis, chartAreaRef, xAxisLabel, yAxisLabel, onAxisLabelClick, showLegend, xAxisDomain, yAxisDomain, isDragging, onLegendSizeChange, isRightPanelOpen, isLegendManuallyPositioned, setIsLegendManuallyPositioned }) => {
   const allDataForDomain = [...observedData, ...pendingRemovalData];
   const yDataDomain = allDataForDomain.length > 0 
     ? [Math.min(...allDataForDomain.map(p => p.y)), Math.max(...allDataForDomain.map(p => p.y))]
@@ -151,11 +154,28 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
   const startPos = useRef<{x: number, y: number}>({x: 0, y: 0});
   const startSize = useRef<{width: number, height: number}>({width: 240, height: 80});
   const legendRef = useRef<HTMLDivElement>(null);
+  const minSizeOnResizeStart = useRef<{width: number, height: number}>({width: 0, height: 0});
+  const autoSize = useRef<{width: number, height: number}>({width: 0, height: 0});
 
   // This effect resets the legend to auto-sizing mode whenever the layout is changed.
   useEffect(() => {
       setIsLegendManuallyResized(false);
+      setIsLegendManuallyPositioned(false);
   }, [styles.legend.layout]);
+
+  // Capture the "auto" size of the legend whenever its content might change or it's not manually resized
+  useEffect(() => {
+    if (legendRef.current && !isLegendManuallyResized) {
+      autoSize.current = {
+        width: legendRef.current.offsetWidth,
+        height: legendRef.current.offsetHeight
+      };
+    }
+  }, [isLegendManuallyResized, observedData, fittedData, groupingData, styles.legend]);
+
+  useEffect(() => {
+    onLegendSizeChange(legendSize);
+  }, [legendSize, onLegendSizeChange]);
 
   const handleResizeMoveDir = (e: MouseEvent) => {
     if (!resizing.current) return;
@@ -163,10 +183,15 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
     const dy = e.clientY - startPos.current.y;
     let { width, height } = startSize.current;
     let dir = resizing.current as string;
-    if (dir.includes('e')) width = Math.max(120, startSize.current.width + dx);
-    if (dir.includes('s')) height = Math.max(48, startSize.current.height + dy);
-    if (dir.includes('w')) width = Math.max(120, startSize.current.width - dx);
-    if (dir.includes('n')) height = Math.max(48, startSize.current.height - dy);
+    
+    const minWidth = minSizeOnResizeStart.current.width;
+    const minHeight = minSizeOnResizeStart.current.height;
+
+    if (dir.includes('e')) width = Math.max(minWidth, startSize.current.width + dx);
+    if (dir.includes('s')) height = Math.max(minHeight, startSize.current.height + dy);
+    if (dir.includes('w')) width = Math.max(minWidth, startSize.current.width - dx);
+    if (dir.includes('n')) height = Math.max(minHeight, startSize.current.height - dy);
+    
     setLegendSize({ width, height });
   };
 
@@ -215,13 +240,16 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
     if (dir) {
       resizing.current = dir;
       setIsLegendManuallyResized(true);
+      setIsLegendManuallyPositioned(true);
       startPos.current = { x: e.clientX, y: e.clientY };
       startSize.current = { width: rect.width, height: rect.height };
+      minSizeOnResizeStart.current = { width: autoSize.current.width || 120, height: autoSize.current.height || 48 };
       window.addEventListener('mousemove', handleResizeMoveDir);
       window.addEventListener('mouseup', handleResizeEndDir);
       e.stopPropagation();
     } else {
       // It's a potential drag
+      setIsLegendManuallyPositioned(true);
       onDragStart(e, 'legend');
     }
   };
@@ -229,12 +257,11 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
   const handleLegendMouseUp = (e: React.MouseEvent) => {
     const dx = Math.abs(e.clientX - dragStartPos.current.x);
     const dy = Math.abs(e.clientY - dragStartPos.current.y);
-    // If it was a small movement and not a resize, treat as a click
-    if (dx < 5 && dy < 5 && !resizing.current) {
-        onElementClick(e, 'legend');
-    }
+    // Check if it was a drag or a click
     if (dx > 5 || dy > 5) {
         wasDragged.current = true;
+    } else if (!resizing.current) {
+      // It's a click, but we do nothing here. Double-click is handled by onDoubleClick.
     }
     resizing.current = false; // Ensure resizing is reset
   };
@@ -261,13 +288,27 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
     let legendX = positions.legend.x;
     let legendY = positions.legend.y;
 
-    if (isLegendManuallyResized && legendRef.current) {
+    const chartMargin = { top: 20, right: 30, left: 40, bottom: 30 };
+    const plotAreaWidth = chartWidth - chartMargin.left - chartMargin.right;
+    const plotAreaHeight = chartHeight - chartMargin.top - chartMargin.bottom;
+
+    if (!isLegendManuallyResized && !isLegendManuallyPositioned) {
+        if (isRightPanelOpen) {
+            // Inside chart area (top-right)
+            legendX = plotAreaWidth - legendSize.width - 20;
+            legendY = 20;
+        } else {
+            // Right of the chart area
+            legendX = chartWidth + 20;
+            legendY = 20;
+        }
+    } else if (isLegendManuallyResized && legendRef.current) {
         const rect = legendRef.current.getBoundingClientRect();
-        legendX = Math.max(margin, Math.min(legendX, chartWidth - rect.width - margin));
-        legendY = Math.max(margin, Math.min(legendY, chartHeight - rect.height - margin));
+        legendX = Math.max(chartMargin.left, Math.min(legendX, chartWidth - rect.width - chartMargin.right));
+        legendY = Math.max(chartMargin.top, Math.min(legendY, chartHeight - rect.height - chartMargin.bottom));
     } else {
-        legendX = Math.max(margin, legendX);
-        legendY = Math.max(margin, legendY);
+        legendX = Math.max(chartMargin.left, legendX);
+        legendY = Math.max(chartMargin.top, legendY);
     }
 
     const finalContainerStyle: React.CSSProperties = {
