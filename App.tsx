@@ -663,9 +663,7 @@ const App: React.FC = () => {
             const chartRect = chartContainerRef.current?.getBoundingClientRect();
             const mainRect = mainAreaRef.current?.getBoundingClientRect();
 
-            if (chartRect && mainRect) {
-                // Constrain the legend's absolute position within the main background area.
-                // The legend's own position (newX, newY) is relative to the chart container.
+            if (chartRect && mainRect && isRightPanelOpen) { // Only constrain when right panel is open
                 const minX = mainRect.left - chartRect.left;
                 const maxX = mainRect.right - chartRect.left - legendSize.width;
                 const minY = mainRect.top - chartRect.top;
@@ -675,6 +673,33 @@ const App: React.FC = () => {
                 newY = Math.max(minY, Math.min(newY, maxY));
             }
             setElementPositions(prev => ({...prev, legend: { x: newX, y: newY } }));
+            return;
+        }
+        
+        if (dragState.target === 'groupingLabel' && dragState.index !== undefined) {
+            if (dragState.dragInfo) { // This is a ReferenceArea label
+                const { areaBounds, labelBase } = dragState.dragInfo;
+                
+                // Constrain within the reference area's viewport coordinates
+                const minX = areaBounds.x - labelBase.x;
+                const maxX = areaBounds.x + areaBounds.width - labelBase.x;
+                const minY = areaBounds.y - labelBase.y;
+                const maxY = areaBounds.y + areaBounds.height - labelBase.y;
+
+                newX = Math.max(minX, Math.min(newX, maxX));
+                newY = Math.max(minY, Math.min(newY, maxY));
+
+            } else { // This is a ReferenceLine label, restrict to Y-axis movement
+                newX = dragState.initialX; // Keep original X
+            }
+            
+            setElementPositions((prev: ChartElementPositions) => {
+                const newPositions = {...prev};
+                const newLabels = [...prev.groupingLabels];
+                newLabels[dragState.index] = { x: newX, y: newY };
+                newPositions.groupingLabels = newLabels;
+                return newPositions;
+            });
             return;
         }
 
@@ -860,10 +885,14 @@ const App: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-20">
-                                <img src={logoSrc} alt="PhenoFit Pro Logo" className="w-48 h-48 mb-4" />
-                                <h2 className="text-2xl font-semibold text-gray-700">Welcome to PhenoFit Pro</h2>
-                                <p className="mt-2 text-muted">Load a data file to begin your analysis.</p>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-200">
+                                <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: `url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%239C92AC" fill-opacity="0.1"><path d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/></g></g></svg>')`}}></div>
+                                <div className="relative text-center p-8 animate-fade-in-up">
+                                    <img src={logoSrc} alt="PhenoFit Pro Logo" className="w-56 h-56 mb-6 mx-auto drop-shadow-2xl" />
+                                    <h2 className="text-4xl font-bold text-gray-800 tracking-tight">Welcome to PhenoFit Pro</h2>
+                                    <p className="mt-4 text-lg text-gray-600 max-w-md mx-auto">Your professional solution for analyzing phenological data with advanced curve fitting models.</p>
+                                    <p className="mt-8 text-md text-gray-500">To get started, please load a data file using the panel on the left.</p>
+                                </div>
                             </div>
                         )}
                     </main>
