@@ -57,6 +57,11 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const groupingFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [localParameters, setLocalParameters] = React.useState<FitParameters>(parameters);
+
+  React.useEffect(() => {
+    setLocalParameters(parameters);
+  }, [parameters]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, handler: (file: File) => void) => {
     if (e.target.files && e.target.files[0]) {
@@ -66,7 +71,12 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
   };
 
   const handleParamChange = (name: keyof FitParameters, value: number) => {
-    setParameters({ ...parameters, [name]: value });
+    setLocalParameters({ ...localParameters, [name]: value });
+    setParameters({ ...parameters, [name]: value }); // Update parent immediately for slider
+  };
+
+  const handleParamInputChange = (name: keyof FitParameters, value: number) => {
+    setParameters({ ...parameters, [name]: value }); // Update parent only when input is finalized
   };
   
   const isParametric = curveModel === CurveModel.DOUBLE_LOGISTIC || curveModel === CurveModel.SINGLE_LOGISTIC;
@@ -145,9 +155,9 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             {isOutlierRemovalEnabled && (
               <div className="mt-4 space-y-4 pt-4 border-t border-panel-border">
                 <Select label="Method" options={Object.values(OutlierMethod).map(m => ({name: m, value: m}))} value={outlierMethod} onChange={e => setOutlierMethod(e.target.value as OutlierMethod)} labelClassName={labelClass}/>
-                {outlierMethod === OutlierMethod.SD && <ParameterSlider label="Std. Dev. Threshold" min={1} max={5} step={0.1} value={outlierThreshold} onChange={setOutlierThreshold} isLocked={false} onLockToggle={() => {}} />}
-                {outlierMethod === OutlierMethod.IQR && <ParameterSlider label="IQR Multiplier" min={0.5} max={4} step={0.1} value={outlierThreshold} onChange={setOutlierThreshold} isLocked={false} onLockToggle={() => {}} />}
-                {outlierMethod === OutlierMethod.MOVING_WINDOW_SD && <ParameterSlider label="Window Std. Dev." min={1} max={5} step={0.1} value={outlierThreshold} onChange={setOutlierThreshold} isLocked={false} onLockToggle={() => {}} />}
+                {outlierMethod === OutlierMethod.SD && <ParameterSlider label="Std. Dev. Threshold" min={1} max={5} step={0.1} value={outlierThreshold} onSliderChange={setOutlierThreshold} onInputChange={setOutlierThreshold} isLocked={false} onLockToggle={() => {}} />}
+                {outlierMethod === OutlierMethod.IQR && <ParameterSlider label="IQR Multiplier" min={0.5} max={4} step={0.1} value={outlierThreshold} onSliderChange={setOutlierThreshold} onInputChange={setOutlierThreshold} isLocked={false} onLockToggle={() => {}} />}
+                {outlierMethod === OutlierMethod.MOVING_WINDOW_SD && <ParameterSlider label="Window Std. Dev." min={1} max={5} step={0.1} value={outlierThreshold} onSliderChange={setOutlierThreshold} onInputChange={setOutlierThreshold} isLocked={false} onLockToggle={() => {}} />}
               </div>
             )}
             {(pendingOutliersCount > 0 || confirmedOutliersCount > 0) && (
@@ -177,8 +187,9 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     </div>
                     {currentParamConfigs.map((p: ParameterConfig) => (
                         <ParameterSlider key={p.name} label={p.label} min={p.min} max={p.max} step={p.step} 
-                          value={parameters[p.name]} 
-                          onChange={value => handleParamChange(p.name, value)}
+                          value={localParameters[p.name]} 
+                          onSliderChange={value => handleParamChange(p.name, value)}
+                          onInputChange={value => handleParamInputChange(p.name, value)}
                           isLocked={lockedParams.has(p.name)}
                           onLockToggle={() => toggleParamLock(p.name)}
                         />

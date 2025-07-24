@@ -13,9 +13,25 @@ interface ResultsPanelProps {
     onDownload: () => void;
 }
 
-const ResultsPanel: React.FC<ResultsPanelProps> = ({ stats, keyPoints, onDownload }) => {
+const ResultsPanel = React.forwardRef<HTMLDivElement, ResultsPanelProps>(({ stats, keyPoints, onDownload, isDateAxis }, ref) => {
+    const getDayOfYear = (date: Date) => {
+        const start = new Date(date.getFullYear(), 0, 0);
+        const diff = (date.getTime() - start.getTime()) + ((start.getTimezoneOffset() - date.getTimezoneOffset()) * 60 * 1000);
+        const oneDay = 1000 * 60 * 60 * 24;
+        return Math.floor(diff / oneDay);
+    };
+
+    const formatXValue = (point: { x: number; y: number } | null) => {
+        if (!point) return 'N/A';
+        if (isDateAxis) {
+            const date = new Date(point.x);
+            return `DOY: ${getDayOfYear(date)}`;
+        }
+        return point.x.toFixed(2);
+    };
+
     return (
-        <div className="bg-panel-bg p-4 rounded-lg">
+        <div ref={ref} className="bg-panel-bg p-4 rounded-lg">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-on-panel-primary">
                 <div className="md:col-span-1">
                     <h3 className="text-md font-semibold text-accent-blue-on-panel">Goodness of Fit</h3>
@@ -30,9 +46,9 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ stats, keyPoints, onDownloa
                     <table className="w-full text-sm text-left mt-2">
                       <thead><tr className="border-b border-panel-border"><th className="pb-1 font-medium text-on-panel-secondary">Phase</th><th className="pb-1 text-right font-medium text-on-panel-secondary">X</th><th className="pb-1 text-right font-medium text-on-panel-secondary">Y</th></tr></thead>
                       <tbody>
-                        <tr><td className="py-1">SOS</td><td className="text-right">{keyPoints.sos?.x.toFixed(2) ?? 'N/A'}</td><td className="text-right">{keyPoints.sos?.y.toFixed(2) ?? 'N/A'}</td></tr>
-                        <tr><td className="py-1">EOS</td><td className="text-right">{keyPoints.eos?.x.toFixed(2) ?? 'N/A'}</td><td className="text-right">{keyPoints.eos?.y.toFixed(2) ?? 'N/A'}</td></tr>
-                        <tr><td className="py-1">Peak</td><td className="text-right">{keyPoints.peak?.x.toFixed(2) ?? 'N/A'}</td><td className="text-right">{keyPoints.peak?.y.toFixed(2) ?? 'N/A'}</td></tr>
+                        <tr><td className="py-1">SOS</td><td className="text-right">{formatXValue(keyPoints.sos)}</td><td className="text-right">{keyPoints.sos?.y.toFixed(2) ?? 'N/A'}</td></tr>
+                        <tr><td className="py-1">EOS</td><td className="text-right">{formatXValue(keyPoints.eos)}</td><td className="text-right">{keyPoints.eos?.y.toFixed(2) ?? 'N/A'}</td></tr>
+                        <tr><td className="py-1">Peak</td><td className="text-right">{formatXValue(keyPoints.peak)}</td><td className="text-right">{keyPoints.peak?.y.toFixed(2) ?? 'N/A'}</td></tr>
                       </tbody>
                     </table>
                 </div>
@@ -43,6 +59,6 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ stats, keyPoints, onDownloa
             </div>
         </div>
     );
-};
+});
 
 export default ResultsPanel;
