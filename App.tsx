@@ -8,10 +8,19 @@ import StylePicker from './components/ui/StylePicker';
 import SheetSelectionDialog from './components/SheetSelectionDialog';
 import ResultsPanel from './components/ResultsPanel';
 import ChatPanel from './components/ChatPanel';
+<<<<<<< Updated upstream
 import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle } from './types';
 import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
 import { downloadChartImage, downloadExcelData } from './services/downloadService';
 import { parseCommand } from './services/nluService';
+=======
+import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle, ApiService, OpenRouterModel, GeminiModel } from './types';
+import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
+import { downloadChartImage, downloadExcelData } from './services/downloadService';
+import { parseCommand } from './services/nluService';
+
+import { toHex } from './services/colorUtils';
+>>>>>>> Stashed changes
 
 const SPECTRAL_PALETTE = [ '#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#d53e4f', '#9e0142' ];
 
@@ -32,11 +41,11 @@ const initialStyles: ChartStyles = {
         fontStyle: 'normal',
         iconSize: 16,
         layout: 'vertical',
-        backgroundColor: '#ffffff',
+        backgroundColor: '#FFFFFF',
         backgroundOpacity: 0.9
     },
-    chartBackground: { color: '#ffffff', opacity: 1 },
-    grid: { visible: true, color: '#adb5bd', strokeDasharray: '3 3' }
+    chartBackground: { color: '#FFFFFF', opacity: 1 },
+    grid: { visible: true, color: '#ADB5BD', strokeDasharray: '3 3' }
 };
 
 type DragInfo = {
@@ -111,6 +120,11 @@ const App: React.FC = () => {
     // Chat State
     const [chatMessages, setChatMessages] = useState<Message[]>([]);
     const [isChatProcessing, setIsChatProcessing] = useState(false);
+<<<<<<< Updated upstream
+=======
+    const [apiService, setApiService] = useState<ApiService>(ApiService.OPENROUTER);
+    const [selectedModel, setSelectedModel] = useState<string>(OpenRouterModel.MISTRAL_7B_INSTRUCT);
+>>>>>>> Stashed changes
 
     const handleLegendSizeChange = useCallback((size: { width: number; height: number }) => {
         setLegendSize(size);
@@ -163,6 +177,7 @@ const App: React.FC = () => {
 
     const [xAxisLabel, setXAxisLabel] = useState(selectedXCol || 'X-Axis');
     const [yAxisLabel, setYAxisLabel] = useState(selectedYCol || 'Y-Axis');
+    const [previousState, setPreviousState] = useState<any>(null);
 
     const estimateSmartParameters = useCallback((data: Point[], isDate: boolean): Partial<FitParameters> => {
         if (data.length < 10) return {};
@@ -207,8 +222,21 @@ const App: React.FC = () => {
         setRawData(data);
         const cols = Object.keys(data[0] || {});
         setColumns(cols);
-        setSelectedXCol(cols.find(c => /date|doy|das|day/i.test(c)) || cols[0] || '');
-        setSelectedYCol(cols.find(c => /ndvi|gcc|value|index/i.test(c)) || (cols.length > 1 ? cols[1] : ''));
+
+        const findColumn = (patterns: RegExp[]) => {
+            for (const pattern of patterns) {
+                const col = cols.find(c => pattern.test(c));
+                if (col) return col;
+            }
+            return null;
+        };
+
+        const xCol = findColumn([/das|days after sowing/i, /doy|day of year/i, /date/i]) || cols[0] || '';
+        const yCol = findColumn([/gcc/i, /ndvi/i, /ndre/i]) || (cols.length > 1 ? cols[1] : '');
+
+        setSelectedXCol(xCol);
+        setSelectedYCol(yCol);
+
         handleClearGrouping();
         setConfirmedRemovedData([]);
     };
@@ -404,11 +432,11 @@ const App: React.FC = () => {
     const { keptData, pendingRemovalData, transformedGrouping: transformedGroupingData, xDomain } = processedData;
 
     useEffect(() => {
-        if (keptData.length > 0 && !hasUserOptimized) {
+        if (keptData.length > 0) {
             const smartParams = estimateSmartParameters(keptData, isDateAxis);
             setParameters((prev: FitParameters) => ({ ...prev, ...smartParams }));
         }
-    }, [keptData, hasUserOptimized, isDateAxis, estimateSmartParameters]);
+    }, [keptData, isDateAxis, estimateSmartParameters, selectedXCol, selectedYCol]);
 
     const calculateFit = useCallback(() => {
         if (keptData.length === 0) { setFittedData([]); setKeyPoints({ sos: null, eos: null, peak: null }); setStats({ r2: 0, rmse: 0 }); return; }
@@ -746,11 +774,16 @@ const App: React.FC = () => {
         setSheetNames([]);
     };
 
+<<<<<<< Updated upstream
     const handleSendMessage = async (message: string) => {
+=======
+    const handleSendMessage = async (message: string, service: ApiService) => {
+>>>>>>> Stashed changes
         const newMessages: Message[] = [...chatMessages, { text: message, sender: 'user' }];
         setChatMessages(newMessages);
         setIsChatProcessing(true);
 
+<<<<<<< Updated upstream
         try {
             const intent = await parseCommand(message, columns, styles);
             let botResponse = intent.response || "I have processed your request.";
@@ -801,12 +834,187 @@ const App: React.FC = () => {
                 default: // UNKNOWN
                     // The botResponse is already set from the intent
                     break;
+=======
+        // Save current state for potential revert
+        setPreviousState({
+            styles,
+            xAxisLabel,
+            yAxisLabel,
+            showLegend,
+            showKeyPoints,
+            xAxisMin,
+            xAxisMax,
+            yAxisMin,
+            yAxisMax,
+            parameters,
+            lockedParams
+        });
+
+        try {
+            const modelConfig = {
+                service: apiService,
+                modelName: selectedModel
+            };
+            const nluResponse = await parseCommand(message, columns, styles, modelConfig);
+            let botResponse = nluResponse.response || "I have processed your request.";
+
+            for (const intent of nluResponse.actions) {
+                switch (intent.action) {
+                    case 'PLOT':
+                        if (intent.payload.x_column && intent.payload.y_column) {
+                            setSelectedXCol(intent.payload.x_column);
+                            setSelectedYCol(intent.payload.y_column);
+                        } else {
+                            botResponse = "I understood you want to plot, but I couldn't identify the X and Y columns. Please be more specific, like 'plot NDVI vs Date'.";
+                        }
+                        break;
+
+                    case 'STYLE':
+                        if (intent.payload.target && intent.payload.properties) {
+                            const newProperties = { ...intent.payload.properties };
+                            console.log("App.tsx: Received properties from NLU:", newProperties);
+                            if (newProperties.color) {
+                                // Ensure color is converted to hex before setting style
+                                newProperties.color = toHex(newProperties.color);
+                                console.log("App.tsx: Converted color to hex for style update:", newProperties.color);
+                            }
+                            setStyles(prev => ({
+                                ...prev,
+                                [intent.payload.target]: { ...prev[intent.payload.target], ...newProperties }
+                            }));
+                        } else {
+                            botResponse = "I understood you want to change a style, but I couldn't determine what to change.";
+                        }
+                        break;
+
+                    case 'SET_AXIS':
+                        if (intent.payload.axis === 'x') {
+                            if (intent.payload.min !== undefined) setXAxisMinStr(String(intent.payload.min));
+                            if (intent.payload.max !== undefined) setXAxisMaxStr(String(intent.payload.max));
+                        } else if (intent.payload.axis === 'y') {
+                            if (intent.payload.min !== undefined) setYAxisMin(intent.payload.min);
+                            if (intent.payload.max !== undefined) setYAxisMax(intent.payload.max);
+                        }
+                        break;
+
+                    case 'TOGGLE_VISIBILITY':
+                        if (intent.payload.element === 'legend') {
+                            setShowLegend(intent.payload.visible);
+                        } else if (intent.payload.element === 'keyPoints') {
+                            setShowKeyPoints(intent.payload.visible);
+                        }
+                        break;
+
+                    case 'OPTIMIZE':
+                        console.log("Chatbot triggered OPTIMIZE action.");
+                        handleOptimize();
+                        break;
+
+                    case 'SET_LABEL':
+                        if (intent.payload.axis === 'x') {
+                            setXAxisLabel(intent.payload.text);
+                        } else if (intent.payload.axis === 'y') {
+                            setYAxisLabel(intent.payload.text);
+                        }
+                        break;
+
+                    case 'MOVE_ELEMENT':
+                        if (intent.payload.element === 'legend') {
+                            const chartRect = chartContainerRef.current?.getBoundingClientRect();
+                            if (chartRect) {
+                                let newX = elementPositions.legend.x;
+                                let newY = elementPositions.legend.y;
+                                const padding = 20;
+
+                                switch (intent.payload.position) {
+                                    case 'top left':
+                                        newX = padding;
+                                        newY = padding;
+                                        break;
+                                    case 'top right':
+                                        newX = chartRect.width - legendSize.width - padding;
+                                        newY = padding;
+                                        break;
+                                    case 'bottom left':
+                                        newX = padding;
+                                        newY = chartRect.height - legendSize.height - padding;
+                                        break;
+                                    case 'bottom right':
+                                        newX = chartRect.width - legendSize.width - padding;
+                                        newY = chartRect.height - legendSize.height - padding;
+                                        break;
+                                }
+                                setElementPositions(prev => ({...prev, legend: { x: newX, y: newY } }));
+                                setIsLegendManuallyPositioned(true);
+                            }
+                        }
+                        break;
+
+                    case 'SET_PARAMETER':
+                        if (intent.payload.parameter && intent.payload.value !== undefined) {
+                            setParameters(prev => ({ ...prev, [intent.payload.parameter]: intent.payload.value }));
+                            botResponse = `OK, I've set ${intent.payload.parameter} to ${intent.payload.value}.`;
+                        } else {
+                            botResponse = "I couldn't set the parameter. Please specify both the parameter name and value.";
+                        }
+                        break;
+
+                    case 'TOGGLE_PARAM_LOCK':
+                        if (intent.payload.parameter) {
+                            const paramToLock = intent.payload.parameter as keyof FitParameters;
+                            setLockedParams(prev => {
+                                const newSet = new Set(prev);
+                                if (intent.payload.locked) {
+                                    newSet.add(paramToLock);
+                                    botResponse = `OK, I've locked the ${paramToLock} parameter.`;
+                                } else {
+                                    newSet.delete(paramToLock);
+                                    botResponse = `OK, I've unlocked the ${paramToLock} parameter.`;
+                                }
+                                return newSet;
+                            });
+                        } else {
+                            botResponse = "I couldn't toggle the lock for the parameter. Please specify the parameter name.";
+                        }
+                        break;
+
+                    case 'REVERT':
+                        if (previousState) {
+                            setStyles(previousState.styles);
+                            setXAxisLabel(previousState.xAxisLabel);
+                            setYAxisLabel(previousState.yAxisLabel);
+                            setShowLegend(previousState.showLegend);
+                            setShowKeyPoints(previousState.showKeyPoints);
+                            setXAxisMin(previousState.xAxisMin);
+                            setXAxisMax(previousState.xAxisMax);
+                            setYAxisMin(previousState.yAxisMin);
+                            setYAxisMax(previousState.yAxisMax);
+                            setParameters(previousState.parameters);
+                            setLockedParams(previousState.lockedParams);
+                        } else {
+                            botResponse = "There is nothing to revert.";
+                        }
+                        break;
+
+                    default: // UNKNOWN
+                        // The botResponse is already set from the intent
+                        break;
+                }
+>>>>>>> Stashed changes
             }
 
             setChatMessages([...newMessages, { text: botResponse, sender: 'bot' }]);
         } catch (error) {
             console.error("Error processing command:", error);
+<<<<<<< Updated upstream
             setChatMessages([...newMessages, { text: "Sorry, a critical error occurred.", sender: 'bot' }]);
+=======
+            if (error instanceof Error) {
+                setChatMessages([...newMessages, { text: `Sorry, a critical error occurred: ${error.message}. Please check the console for details.`, sender: 'bot' }]);
+            } else {
+                setChatMessages([...newMessages, { text: "Sorry, a critical error occurred. Please check the console for details.", sender: 'bot' }]);
+            }
+>>>>>>> Stashed changes
         } finally {
             setIsChatProcessing(false);
         }
@@ -1045,6 +1253,13 @@ const App: React.FC = () => {
                                     onSendMessage={handleSendMessage}
                                     messages={chatMessages}
                                     isProcessing={isChatProcessing}
+<<<<<<< Updated upstream
+=======
+                                    apiService={apiService}
+                                    setApiService={setApiService}
+                                    selectedModel={selectedModel}
+                                    setSelectedModel={setSelectedModel}
+>>>>>>> Stashed changes
                                 />
                             </div>
                         </div>

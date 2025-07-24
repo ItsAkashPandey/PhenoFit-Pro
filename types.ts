@@ -157,3 +157,23 @@ export interface ColorPickerState {
     left: number;
     onColorSelect: (color: string) => void;
 }
+
+export enum ApiService {
+    OPENROUTER = 'OpenRouter',
+    GEMINI = 'Gemini',
+}
+
+export enum OpenRouterModel {
+    MISTRAL_7B_INSTRUCT = 'mistralai/mistral-7b-instruct',
+    MISTRAL_SMALL_3_2 = 'mistralai/mistral-small-3.2-24b-instruct-2506',
+}
+
+export enum GeminiModel {
+    GEMINI_1_5_FLASH = 'gemini-1.5-flash',
+    GEMINI_1_5_PRO = 'gemini-1.5-pro',
+}
+
+export type ModelConfig = {
+    service: ApiService;
+    modelName: string;
+};

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface ParameterSliderProps {
   label: string;
@@ -6,24 +6,58 @@ interface ParameterSliderProps {
   min: number;
   max: number;
   step: number;
-  onChange: (value: number) => void;
+  onSliderChange: (value: number) => void; // New prop for slider changes
+  onInputChange: (value: number) => void; // Prop for when input value is finalized (onBlur/Enter)
   isLocked: boolean;
   onLockToggle: () => void;
   disabled?: boolean;
 }
 
-const ParameterSlider: React.FC<ParameterSliderProps> = ({ label, value, min, max, step, onChange, isLocked, onLockToggle, disabled = false }) => {
+const ParameterSlider: React.FC<ParameterSliderProps> = ({ label, value, min, max, step, onSliderChange, onInputChange, isLocked, onLockToggle, disabled = false }) => {
+  const [inputValue, setInputValue] = useState(value.toString());
+  const inputRef = useRef<HTMLInputElement>(null); // Ref to the number input
+
+  useEffect(() => {
+    // Update internal input value when the external 'value' prop changes,
+    // but only if the input is not currently focused (user is not typing)
+    // or if the current inputValue is not a valid number (meaning user is typing something invalid)
+    // or if the external value is significantly different from the current input value
+    if (inputRef.current && document.activeElement !== inputRef.current) {
+      setInputValue(value.toFixed(3)); // Format to 3 decimal places for display
+    }
+  }, [value]);
+
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(parseFloat(e.target.value));
+    const newValue = parseFloat(e.target.value);
+    setInputValue(newValue.toString()); // Update internal state for immediate visual feedback
+    onSliderChange(newValue); // Immediately update parent for slider changes
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
-    if (!isNaN(val)) {
-      onChange(val);
+    setInputValue(e.target.value); // Only update internal state while typing
+  };
+
+  const handleInputBlur = () => {
+    const newValue = parseFloat(inputValue);
+    if (!isNaN(newValue)) {
+      onInputChange(newValue); // Update parent only on blur
+    } else {
+      setInputValue(value.toString()); // Revert to last valid value if input is invalid
     }
   };
-  
+
+  const handleInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const newValue = parseFloat(inputValue);
+      if (!isNaN(newValue)) {
+        onInputChange(newValue); // Update parent on Enter
+      } else {
+        setInputValue(value.toString()); // Revert to last valid value if input is invalid
+      }
+      e.currentTarget.blur(); // Blur the input to dismiss keyboard on mobile, etc.
+    }
+  };
+
   const isDisabled = disabled || isLocked;
 
   return (
@@ -41,12 +75,15 @@ const ParameterSlider: React.FC<ParameterSliderProps> = ({ label, value, min, ma
               className="flex-grow h-2 bg-on-panel-muted rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <input
+              ref={inputRef} // Assign the ref here
               type="number"
-              value={value.toFixed(4)}
+              value={inputValue}
               min={min}
               max={max}
               step={step}
               onChange={handleInputChange}
+              onBlur={handleInputBlur}
+              onKeyPress={handleInputKeyPress}
               disabled={isDisabled}
               className="w-24 text-sm p-1 rounded-md border-panel-border bg-item-bg-on-panel text-on-panel-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />

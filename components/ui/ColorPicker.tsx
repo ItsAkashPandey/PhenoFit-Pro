@@ -1,9 +1,13 @@
-import React, { useEffect, useRef } from 'react';
-import { ColorPickerState } from '../../types';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface ColorPickerProps {
-    state: ColorPickerState;
+    visible: boolean;
+    top: number;
+    left: number;
+    currentColor: string;
+    onColorChange: (color: string) => void;
     onClose: () => void;
+    onDragStart: (e: React.MouseEvent) => void;
 }
 
 const COLORS = [
@@ -14,8 +18,13 @@ const COLORS = [
   '#e5e7eb', '#e9d5ff', '#f5d0fe', '#fce7f3', '#ffe4e6'
 ];
 
-const ColorPicker: React.FC<ColorPickerProps> = ({ state, onClose }) => {
+const ColorPicker: React.FC<ColorPickerProps> = ({ visible, top, left, currentColor, onColorChange, onClose, onDragStart }) => {
+    const [hexValue, setHexValue] = useState(currentColor);
     const pickerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setHexValue(currentColor);
+    }, [currentColor]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,32 +36,45 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ state, onClose }) => {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [onClose]);
 
-    if (!state.visible) return null;
+    if (!visible) return null;
 
-    const handleColorSelect = (color: string) => {
-        state.onColorSelect(color);
-        onClose();
+    const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setHexValue(e.target.value);
+        if (/^#[0-9A-F]{6}$/i.test(e.target.value)) {
+            onColorChange(e.target.value);
+        }
     };
 
     return (
-        <div className="fixed inset-0 z-40" onClick={onClose}>
-            <div
-                ref={pickerRef}
-                className="fixed z-50 p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl"
-                style={{ top: state.top, left: state.left }}
-                onClick={(e) => e.stopPropagation()} // Prevent backdrop click from firing
-            >
-                <div className="grid grid-cols-7 gap-2">
-                    {COLORS.map(color => (
-                        <div
-                            key={color}
-                            className="w-8 h-8 rounded-full cursor-pointer transition-transform hover:scale-110 border border-gray-200 dark:border-gray-700"
-                            style={{ backgroundColor: color }}
-                            onClick={() => handleColorSelect(color)}
-                        />
-                    ))}
-                </div>
+        <div
+            ref={pickerRef}
+            className="fixed z-50 p-4 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl"
+            style={{ top, left }}
+            onMouseDown={onDragStart}
+        >
+            <div className="grid grid-cols-7 gap-2 mb-4">
+                {COLORS.map(color => (
+                    <div
+                        key={color}
+                        className="w-8 h-8 rounded-full cursor-pointer transition-transform hover:scale-110 border-2"
+                        style={{ backgroundColor: color, borderColor: currentColor === color ? '#3b82f6' : 'transparent' }}
+                        onClick={() => onColorChange(color)}
+                    />
+                ))}
             </div>
+            <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full border border-gray-300" style={{ backgroundColor: currentColor }}></div>
+                <input
+                    type="text"
+                    value={hexValue}
+                    onChange={handleHexChange}
+                    className="w-full px-2 py-1 border rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="#RRGGBB"
+                />
+            </div>
+            <button onClick={onClose} className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
         </div>
     );
 };
