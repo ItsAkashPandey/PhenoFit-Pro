@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { Point, KeyPoints, GroupingData, StyleTarget, ChartStyles, ChartElementPositions, DraggablePosition, MarkerStyle } from '../types';
+import { toRgba } from '../services/colorUtils';
 
 interface DraggableComponentProps {
     x?: number;
@@ -78,19 +79,6 @@ const CustomTooltip: React.FC<CustomTooltipComponentProps> = ({ active, payload,
             })}
         </div>
     );
-};
-
-const hexToRgba = (hex: string, opacity: number): string => {
-    let c: any;
-    if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
-        c = hex.substring(1).split('');
-        if (c.length === 3) {
-            c = [c[0], c[0], c[1], c[1], c[2], c[2]];
-        }
-        c = '0x' + c.join('');
-        return `rgba(${[(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',')},${opacity})`;
-    }
-    return hex; // Fallback for invalid hex
 };
 
 interface ChartProps {
@@ -315,9 +303,9 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
         position: 'absolute',
         top: `${legendY}px`,
         left: `${legendX}px`,
-        background: hexToRgba(legendStyle.backgroundColor, legendStyle.backgroundOpacity),
+        background: toRgba(legendStyle.backgroundColor, legendStyle.backgroundOpacity),
         padding: '5px 10px',
-        border: `1px solid ${hexToRgba(legendStyle.color, 0.2)}`,
+        border: `1px solid ${toRgba(legendStyle.color, 0.2)}`,
         borderRadius: '8px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
         cursor: 'move',
@@ -337,22 +325,22 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
     const renderLegendIcon = (entry: any) => {
         const iconSize = legendStyle.iconSize;
         const style = entry.style;
+        const color = toRgba(style.color, style.opacity);
 
         if (entry.type === 'scatter') {
             if (style.shape === 'x') {
                 const halfSize = iconSize / 2;
-                return <path d={`M${halfSize - 4},${halfSize - 4}L${halfSize + 4},${halfSize + 4}M${halfSize + 4},${halfSize - 4}L${halfSize - 4},${halfSize + 4}`} stroke={style.color} strokeWidth={2} style={{ opacity: style.opacity }} />;
+                return <path d={`M${halfSize - 4},${halfSize - 4}L${halfSize + 4},${halfSize + 4}M${halfSize + 4},${halfSize - 4}L${halfSize - 4},${halfSize + 4}`} stroke={color} strokeWidth={2} />;
             } else if (style.shape === 'cross') {
-                // This is for the 'plus' sign in recharts
-                return <Symbols cx={iconSize/2} cy={iconSize/2} type="cross" size={iconSize * 4} fill={style.color} style={{ opacity: style.opacity }} />
+                return <Symbols cx={iconSize/2} cy={iconSize/2} type="cross" size={iconSize * 4} fill={color} />
             }
-            return <Symbols cx={iconSize/2} cy={iconSize/2} type={style.shape} size={iconSize * 4} fill={style.color} style={{ opacity: style.opacity }} />
+            return <Symbols cx={iconSize/2} cy={iconSize/2} type={style.shape} size={iconSize * 4} fill={color} />
         }
         if (entry.type === 'line') {
-            return <path d={`M0,${iconSize/2}h${iconSize}`} stroke={style.color} strokeWidth={3} strokeDasharray={style.strokeDasharray === '0' ? undefined : style.strokeDasharray} style={{ opacity: style.opacity }} />
+            return <path d={`M0,${iconSize/2}h${iconSize}`} stroke={color} strokeWidth={3} strokeDasharray={style.strokeDasharray === '0' ? undefined : style.strokeDasharray} />
         }
         if (entry.type === 'group') {
-            return <path d={`M0,${iconSize/2}h${iconSize}`} stroke={style.color} strokeWidth={3} style={{ opacity: style.opacity }} />
+            return <path d={`M0,${iconSize/2}h${iconSize}`} stroke={color} strokeWidth={3} />
         }
         return null;
     }
@@ -395,16 +383,16 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
       const { cx, cy } = props;
       const { shape, size, color, opacity } = style;
       if (cx === undefined || cy === undefined) return null;
+      const rgbaColor = toRgba(color, opacity);
 
       const renderSymbol = () => {
           if (shape === 'x') {
               const halfSize = size / 1.5;
-              return <path d={`M${cx - halfSize},${cy - halfSize}L${cx + halfSize},${cy + halfSize}M${cx + halfSize},${cy - halfSize}L${cx - halfSize},${cy + halfSize}`} stroke={color} strokeWidth={2} style={{ opacity, pointerEvents: 'none' }} />;
+              return <path d={`M${cx - halfSize},${cy - halfSize}L${cx + halfSize},${cy + halfSize}M${cx + halfSize},${cy - halfSize}L${cx - halfSize},${cy + halfSize}`} stroke={rgbaColor} strokeWidth={2} style={{ pointerEvents: 'none' }} />;
           } else if (shape === 'cross') {
-              // This is for the 'plus' sign in recharts
-              return <Symbols cx={cx} cy={cy} type="cross" size={size * size} fill={color} style={{ opacity, pointerEvents: 'none' }} />;
+              return <Symbols cx={cx} cy={cy} type="cross" size={size * size} fill={rgbaColor} style={{ pointerEvents: 'none' }} />;
           }
-          return <Symbols cx={cx} cy={cy} type={shape} size={size * size} fill={color} style={{ opacity, pointerEvents: 'none' }} />;
+          return <Symbols cx={cx} cy={cy} type={shape} size={size * size} fill={rgbaColor} style={{ pointerEvents: 'none' }} />;
       };
 
       const hitboxSize = Math.max(24, size * 2);
@@ -419,7 +407,7 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
   return (
     <div
       className="w-full h-full p-4 rounded-lg relative"
-      style={{ background: hexToRgba(styles.chartBackground.color, styles.chartBackground.opacity) }}
+      style={{ background: toRgba(styles.chartBackground.color, styles.chartBackground.opacity) }}
       onDoubleClick={(e) => {
         const target = e.target as HTMLElement;
         if(target.classList.contains('recharts-surface') || target.classList.contains('recharts-responsive-container')) onElementClick(e, 'chartBackground')
@@ -428,7 +416,7 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
     >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart margin={{ top: 20, right: 30, left: 40, bottom: 30 }}>
-          {styles.grid.visible && <CartesianGrid strokeDasharray={styles.grid.strokeDasharray} strokeOpacity={0.4} stroke={styles.grid.color} />}
+          {styles.grid.visible && <CartesianGrid strokeDasharray={styles.grid.strokeDasharray} stroke={toRgba(styles.grid.color, 0.4)} />}
           <XAxis 
             type="number" dataKey="x" name={xCol} domain={[xAxisDomain[0] ?? 'dataMin', xAxisDomain[1] ?? 'dataMax']}
             tick={{ ...styles.xAxis, fill: styles.xAxis.color }} stroke={styles.xAxis.color} tickFormatter={formatXAxisTick}
@@ -452,11 +440,12 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
               const groupStyle = styles.groupingStyles[index] || styles.groupingStyles[0];
               const textStyle = styles.groupingText;
               const hasLabel = typeof group.label === 'string' && group.label.trim() !== '';
+              const groupRgbaColor = toRgba(groupStyle.color, groupStyle.opacity);
               if (group.end != null) {
                   return (
                       <ReferenceArea key={`group-${index}`} x1={group.start} x2={group.end}
-                          stroke={groupStyle.color} fill={groupStyle.color} fillOpacity={groupStyle.opacity}
-                          strokeOpacity={groupStyle.opacity} strokeDasharray={groupStyle.strokeDasharray}
+                          stroke={groupRgbaColor} fill={groupRgbaColor}
+                          strokeDasharray={groupStyle.strokeDasharray}
                           onClick={(e) => onElementClick(e, 'groupingStyles', index)} 
                           label={hasLabel && styles.showGroupingLabels ? (props: any) => {
                               if (!props.viewBox || !props.viewBox.x || !props.viewBox.y) return <></>;
@@ -477,8 +466,8 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
                     <ReferenceLine x={group.start} stroke="transparent" strokeWidth={20}
                         onClick={(e) => onElementClick(e, 'groupingStyles', index)} 
                     />
-                    <ReferenceLine x={group.start} stroke={groupStyle.color}
-                        strokeDasharray={groupStyle.strokeDasharray} strokeWidth={groupStyle.strokeWidth} opacity={groupStyle.opacity}
+                    <ReferenceLine x={group.start} stroke={groupRgbaColor}
+                        strokeDasharray={groupStyle.strokeDasharray} strokeWidth={groupStyle.strokeWidth}
                         label={hasLabel && styles.showGroupingLabels ? (props: any) => {
                             if (!props.viewBox || !props.viewBox.x) return <></>;
                             const { x } = props.viewBox;
@@ -530,10 +519,9 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
             data={fittedData}
             dataKey="y"
             type="monotoneX"
-            stroke={styles.fitted.color}
+            stroke={toRgba(styles.fitted.color, styles.fitted.opacity)}
             strokeWidth={styles.fitted.strokeWidth}
             strokeDasharray={styles.fitted.strokeDasharray === '0' ? undefined : styles.fitted.strokeDasharray}
-            strokeOpacity={styles.fitted.opacity}
             dot={false}
             isAnimationActive={false}
             connectNulls={true}
