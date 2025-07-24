@@ -7,9 +7,11 @@ import GroupingDialog from './components/GroupingDialog';
 import StylePicker from './components/ui/StylePicker';
 import SheetSelectionDialog from './components/SheetSelectionDialog';
 import ResultsPanel from './components/ResultsPanel';
+import ChatPanel from './components/ChatPanel';
 import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle } from './types';
 import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
 import { downloadChartImage, downloadExcelData } from './services/downloadService';
+import { parseCommand } from './services/nluService';
 
 const SPECTRAL_PALETTE = [ '#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#d53e4f', '#9e0142' ];
 
@@ -52,6 +54,11 @@ type DragState = {
     initialY: number;
     dragInfo?: DragInfo;
 };
+
+interface Message {
+    text: string;
+    sender: 'user' | 'bot';
+}
 
 const parseDateValue = (value: any): number | null => {
   if (value instanceof Date && !isNaN(value.getTime())) {
@@ -100,6 +107,10 @@ const App: React.FC = () => {
     const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
     const [legendSize, setLegendSize] = useState({ width: 240, height: 80 });
     const [isLegendManuallyPositioned, setIsLegendManuallyPositioned] = useState(false);
+
+    // Chat State
+    const [chatMessages, setChatMessages] = useState<Message[]>([]);
+    const [isChatProcessing, setIsChatProcessing] = useState(false);
 
     const handleLegendSizeChange = useCallback((size: { width: number; height: number }) => {
         setLegendSize(size);
@@ -735,6 +746,72 @@ const App: React.FC = () => {
         setSheetNames([]);
     };
 
+    const handleSendMessage = async (message: string) => {
+        const newMessages: Message[] = [...chatMessages, { text: message, sender: 'user' }];
+        setChatMessages(newMessages);
+        setIsChatProcessing(true);
+
+        try {
+            const intent = await parseCommand(message, columns, styles);
+            let botResponse = intent.response || "I have processed your request.";
+
+            switch (intent.action) {
+                case 'PLOT':
+                    if (intent.payload.x_column && intent.payload.y_column) {
+                        setSelectedXCol(intent.payload.x_column);
+                        setSelectedYCol(intent.payload.y_column);
+                    } else {
+                        botResponse = "I understood you want to plot, but I couldn't identify the X and Y columns. Please be more specific, like 'plot NDVI vs Date'.";
+                    }
+                    break;
+
+                case 'STYLE':
+                    if (intent.payload.target && intent.payload.properties) {
+                        setStyles(prev => ({
+                            ...prev,
+                            [intent.payload.target]: { ...prev[intent.payload.target], ...intent.payload.properties }
+                        }));
+                    } else {
+                        botResponse = "I understood you want to change a style, but I couldn't determine what to change.";
+                    }
+                    break;
+
+                case 'SET_AXIS':
+                    if (intent.payload.axis === 'x') {
+                        if (intent.payload.min !== undefined) setXAxisMinStr(String(intent.payload.min));
+                        if (intent.payload.max !== undefined) setXAxisMaxStr(String(intent.payload.max));
+                    } else if (intent.payload.axis === 'y') {
+                        if (intent.payload.min !== undefined) setYAxisMin(intent.payload.min);
+                        if (intent.payload.max !== undefined) setYAxisMax(intent.payload.max);
+                    }
+                    break;
+
+                case 'TOGGLE_VISIBILITY':
+                    if (intent.payload.element === 'legend') {
+                        setShowLegend(intent.payload.visible);
+                    } else if (intent.payload.element === 'keyPoints') {
+                        setShowKeyPoints(intent.payload.visible);
+                    }
+                    break;
+
+                case 'OPTIMIZE':
+                    handleOptimize();
+                    break;
+
+                default: // UNKNOWN
+                    // The botResponse is already set from the intent
+                    break;
+            }
+
+            setChatMessages([...newMessages, { text: botResponse, sender: 'bot' }]);
+        } catch (error) {
+            console.error("Error processing command:", error);
+            setChatMessages([...newMessages, { text: "Sorry, a critical error occurred.", sender: 'bot' }]);
+        } finally {
+            setIsChatProcessing(false);
+        }
+    };
+
     useEffect(() => {
         if (dragState.isDragging) {
             window.addEventListener('mousemove', handleMouseMove);
@@ -915,48 +992,60 @@ const App: React.FC = () => {
                 {/* Right Options Panel */}
                 <div className={`relative h-full bg-panel-bg transition-all duration-300 ease-in-out ${isDataLoaded ? '' : 'hidden'} ${isRightPanelOpen ? 'w-[350px]' : 'w-[40px]'} shadow-lg z-10 overflow-hidden`}>
                     {isRightPanelOpen && (
-                        <div className="p-4 text-on-panel-primary h-full overflow-y-auto">
-                            <h3 className="text-lg font-bold mb-4">Chart Options</h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <h4 className="text-md font-semibold mb-2">Data Filtering</h4>
-                                    <div className="flex items-center">
-                                        <input type="checkbox" id="removeZeroValues" checked={removeZeroValues} onChange={e => setRemoveZeroValues(e.target.checked)} className="mr-2" />
-                                        <label htmlFor="removeZeroValues" className="text-on-panel-secondary">Remove 0 values</label>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <input type="checkbox" id="removeNaNValues" checked={removeNaNValues} onChange={e => setRemoveNaNValues(e.target.checked)} className="mr-2" />
-                                        <label htmlFor="removeNaNValues" className="text-on-panel-secondary">Remove NaN values</label>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <input type="checkbox" id="removeBlankValues" checked={removeBlankValues} onChange={e => setRemoveBlankValues(e.target.checked)} className="mr-2" />
-                                        <label htmlFor="removeBlankValues" className="text-on-panel-secondary">Remove blank values</label>
-                                    </div>
-                                </div>
-                                <div>
-                                    <h4 className="text-md font-semibold mb-2">Legend</h4>
-                                    <div className="flex items-center">
-                                        <input type="checkbox" id="showLegend" checked={showLegend} onChange={e => setShowLegend(e.target.checked)} className="mr-2" />
-                                        <label htmlFor="showLegend" className="text-on-panel-secondary">Show Legend</label>
-                                    </div>
-                                </div>
-                                <div>
-                                    <h4 className="text-md font-semibold mb-2">Axis Limits</h4>
-                                    <div className="flex flex-col space-y-2">
-                                        <label className="text-on-panel-secondary">X-Axis Min/Max:</label>
-                                        <div className="flex space-x-2">
-                                            <input type="text" value={xAxisMinStr} onChange={e => setXAxisMinStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
-                                            <input type="text" value={xAxisMaxStr} onChange={e => setXAxisMaxStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
-                                            <button onClick={() => { setXAxisMinStr(''); setXAxisMaxStr(''); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                        <div className="p-4 text-on-panel-primary h-full flex flex-col">
+                            {/* Chart Options Section */}
+                            <div>
+                                <h3 className="text-lg font-bold mb-4">Chart Options</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <h4 className="text-md font-semibold mb-2">Data Filtering</h4>
+                                        <div className="flex items-center">
+                                            <input type="checkbox" id="removeZeroValues" checked={removeZeroValues} onChange={e => setRemoveZeroValues(e.target.checked)} className="mr-2" />
+                                            <label htmlFor="removeZeroValues" className="text-on-panel-secondary">Remove 0 values</label>
                                         </div>
-                                        <label className="text-on-panel-secondary">Y-Axis Min/Max:</label>
-                                        <div className="flex space-x-2">
-                                            <input type="number" value={yAxisMin ?? ''} onChange={e => setYAxisMin(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
-                                            <input type="number" value={yAxisMax ?? ''} onChange={e => setYAxisMax(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
-                                            <button onClick={() => { setYAxisMin(undefined); setYAxisMax(undefined); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                                        <div className="flex items-center">
+                                            <input type="checkbox" id="removeNaNValues" checked={removeNaNValues} onChange={e => setRemoveNaNValues(e.target.checked)} className="mr-2" />
+                                            <label htmlFor="removeNaNValues" className="text-on-panel-secondary">Remove NaN values</label>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <input type="checkbox" id="removeBlankValues" checked={removeBlankValues} onChange={e => setRemoveBlankValues(e.target.checked)} className="mr-2" />
+                                            <label htmlFor="removeBlankValues" className="text-on-panel-secondary">Remove blank values</label>
                                         </div>
                                     </div>
+                                    <div>
+                                        <h4 className="text-md font-semibold mb-2">Legend</h4>
+                                        <div className="flex items-center">
+                                            <input type="checkbox" id="showLegend" checked={showLegend} onChange={e => setShowLegend(e.target.checked)} className="mr-2" />
+                                            <label htmlFor="showLegend" className="text-on-panel-secondary">Show Legend</label>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-md font-semibold mb-2">Axis Limits</h4>
+                                        <div className="flex flex-col space-y-2">
+                                            <label className="text-on-panel-secondary">X-Axis Min/Max:</label>
+                                            <div className="flex space-x-2">
+                                                <input type="text" value={xAxisMinStr} onChange={e => setXAxisMinStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
+                                                <input type="text" value={xAxisMaxStr} onChange={e => setXAxisMaxStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
+                                                <button onClick={() => { setXAxisMinStr(''); setXAxisMaxStr(''); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                                            </div>
+                                            <label className="text-on-panel-secondary">Y-Axis Min/Max:</label>
+                                            <div className="flex space-x-2">
+                                                <input type="number" value={yAxisMin ?? ''} onChange={e => setYAxisMin(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
+                                                <input type="number" value={yAxisMax ?? ''} onChange={e => setYAxisMax(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
+                                                <button onClick={() => { setYAxisMin(undefined); setYAxisMax(undefined); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                            </div>
+
+                            {/* AI Assistant Section - pushed to the bottom */}
+                            <div className="mt-auto pt-4 flex-shrink-0">
+                                <ChatPanel
+                                    onSendMessage={handleSendMessage}
+                                    messages={chatMessages}
+                                    isProcessing={isChatProcessing}
+                                />
                             </div>
                         </div>
                     )}
