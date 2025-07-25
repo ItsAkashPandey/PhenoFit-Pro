@@ -8,7 +8,7 @@ interface SheetSelectionDialogProps {
 }
 
 const SheetSelectionDialog: React.FC<SheetSelectionDialogProps> = ({ sheetNames, onSelect, onCancel }) => {
-  const [selectedSheet, setSelectedSheet] = useState(sheetNames[0]);
+  const [selectedSheet, setSelectedSheet] = useState('');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

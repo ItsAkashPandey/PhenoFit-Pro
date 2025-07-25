@@ -53,14 +53,12 @@ export interface GroupingConfig {
   startCol: string;
   endCol: string | null;
   labelCol: string | null;
-  colorCol: string | null;
 }
 
 export interface GroupingData {
   start: number;
   end: number | null;
   label: string;
-  color: string;
 }
 
 export interface DraggablePosition {
@@ -151,13 +149,6 @@ export interface StylePickerState {
     currentStyle: Partial<LineStyle & MarkerStyle & TextStyle & BackgroundStyle & { grid: GridStyle }>;
 }
 
-export interface ColorPickerState {
-    visible: boolean;
-    top: number;
-    left: number;
-    onColorSelect: (color: string) => void;
-}
-
 export enum ApiService {
     OPENROUTER = 'OpenRouter',
     GEMINI = 'Gemini',
@@ -177,3 +168,7 @@ export type ModelConfig = {
     service: ApiService;
     modelName: string;
 };
+
+export interface HeadersInit {
+    [key: string]: string;
+}

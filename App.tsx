@@ -8,19 +8,10 @@ import StylePicker from './components/ui/StylePicker';
 import SheetSelectionDialog from './components/SheetSelectionDialog';
 import ResultsPanel from './components/ResultsPanel';
 import ChatPanel from './components/ChatPanel';
-<<<<<<< Updated upstream
-import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle } from './types';
+import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle, ApiService, OpenRouterModel } from './types';
 import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
 import { downloadChartImage, downloadExcelData } from './services/downloadService';
 import { parseCommand } from './services/nluService';
-=======
-import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle, ApiService, OpenRouterModel, GeminiModel } from './types';
-import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
-import { downloadChartImage, downloadExcelData } from './services/downloadService';
-import { parseCommand } from './services/nluService';
-
-import { toHex } from './services/colorUtils';
->>>>>>> Stashed changes
 
 const SPECTRAL_PALETTE = [ '#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#d53e4f', '#9e0142' ];
 
@@ -120,11 +111,8 @@ const App: React.FC = () => {
     // Chat State
     const [chatMessages, setChatMessages] = useState<Message[]>([]);
     const [isChatProcessing, setIsChatProcessing] = useState(false);
-<<<<<<< Updated upstream
-=======
     const [apiService, setApiService] = useState<ApiService>(ApiService.OPENROUTER);
     const [selectedModel, setSelectedModel] = useState<string>(OpenRouterModel.MISTRAL_7B_INSTRUCT);
->>>>>>> Stashed changes
 
     const handleLegendSizeChange = useCallback((size: { width: number; height: number }) => {
         setLegendSize(size);
@@ -148,7 +136,6 @@ const App: React.FC = () => {
         L: 0.7, k: 0.1, x0: 125, span: 0.5, windowSize: 15,
     });
     const [lockedParams, setLockedParams] = useState<Set<keyof FitParameters>>(new Set());
-    const [hasUserOptimized, setHasUserOptimized] = useState(false);
 
     // UI & Chart State
     const [fittedData, setFittedData] = useState<Point[]>([]);
@@ -217,7 +204,7 @@ const App: React.FC = () => {
 
     const processLoadedData = (data: any[]) => {
         if (!data || data.length === 0) return alert("File is empty.");
-        setHasUserOptimized(false);
+        
         setLockedParams(new Set());
         setRawData(data);
         const cols = Object.keys(data[0] || {});
@@ -241,7 +228,7 @@ const App: React.FC = () => {
         setConfirmedRemovedData([]);
     };
 
-    const readFile = (file: File, callback: (data: any[], sheetName?: string) => void) => {
+    const readFile = (file: File, callback: (data: any[]) => void) => {
         const fileType = file.name.split('.').pop()?.toLowerCase();
         if (fileType === 'csv') {
             Papa.parse(file, { header: true, dynamicTyping: true, skipEmptyLines: true, complete: (res: Papa.ParseResult<any>) => callback(res.data as any[]), error: (err: Papa.ParseError) => alert(`Error: ${err.message}`) });
@@ -255,7 +242,7 @@ const App: React.FC = () => {
                         setSheetNames(workbook.SheetNames);
                         setIsSheetSelectionVisible(true);
                     } else {
-                        callback(XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]), workbook.SheetNames[0]);
+                        callback(XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]));
                     }
                 } catch (err) {
                     console.error("Error parsing Excel file:", err);
@@ -268,8 +255,8 @@ const App: React.FC = () => {
         }
     };
 
-    const handleFileLoad = (file: File) => readFile(file, (data) => {
-        processLoadedData(data);
+    const handleFileLoad = (file: File) => readFile(file, (_data) => {
+        processLoadedData(_data);
     });
 
     const handleGroupingFileLoad = (file: File) => readFile(file, (data) => {
@@ -531,7 +518,7 @@ const App: React.FC = () => {
                 if ('strokeWidth' in newStyle) updatedGroupingStyle.strokeWidth = newStyle.strokeWidth as number;
                 if ('strokeDasharray' in newStyle) updatedGroupingStyle.strokeDasharray = newStyle.strokeDasharray as string;
                 if ('opacity' in newStyle) updatedGroupingStyle.opacity = newStyle.opacity as number;
-                if ('color' in newStyle) updatedGroupingStyle.color = newStyle.color as string;
+                if ('color' in newStyle) updatedGroupingText.color = newStyle.color as string;
                 if ('fontSize' in newStyle) updatedGroupingText.fontSize = newStyle.fontSize as number;
                 if ('fontWeight' in newStyle) updatedGroupingText.fontWeight = newStyle.fontWeight as 'normal' | 'bold';
                 if ('fontStyle' in newStyle) updatedGroupingText.fontStyle = newStyle.fontStyle as 'normal' | 'italic';
@@ -592,7 +579,7 @@ const App: React.FC = () => {
             }
 
             setParameters((prev: FitParameters) => ({...prev, ...optimizedDenormParams}));
-            setHasUserOptimized(true);
+            
         } catch (error) {
             console.error("Optimization failed:", error);
         } finally {
@@ -751,7 +738,7 @@ const App: React.FC = () => {
             }
             return newPositions;
         });
-    }, [dragState]);
+    }, [dragState, isRightPanelOpen, legendSize.height, legendSize.width]);
 
     const handleMouseUp = useCallback(() => {
         setDragState((prev: DragState) => ({...prev, isDragging: false, target: null}));
@@ -774,67 +761,11 @@ const App: React.FC = () => {
         setSheetNames([]);
     };
 
-<<<<<<< Updated upstream
-    const handleSendMessage = async (message: string) => {
-=======
-    const handleSendMessage = async (message: string, service: ApiService) => {
->>>>>>> Stashed changes
+    const handleSendMessage = async (message: string, _service: ApiService) => {
         const newMessages: Message[] = [...chatMessages, { text: message, sender: 'user' }];
         setChatMessages(newMessages);
         setIsChatProcessing(true);
 
-<<<<<<< Updated upstream
-        try {
-            const intent = await parseCommand(message, columns, styles);
-            let botResponse = intent.response || "I have processed your request.";
-
-            switch (intent.action) {
-                case 'PLOT':
-                    if (intent.payload.x_column && intent.payload.y_column) {
-                        setSelectedXCol(intent.payload.x_column);
-                        setSelectedYCol(intent.payload.y_column);
-                    } else {
-                        botResponse = "I understood you want to plot, but I couldn't identify the X and Y columns. Please be more specific, like 'plot NDVI vs Date'.";
-                    }
-                    break;
-
-                case 'STYLE':
-                    if (intent.payload.target && intent.payload.properties) {
-                        setStyles(prev => ({
-                            ...prev,
-                            [intent.payload.target]: { ...prev[intent.payload.target], ...intent.payload.properties }
-                        }));
-                    } else {
-                        botResponse = "I understood you want to change a style, but I couldn't determine what to change.";
-                    }
-                    break;
-
-                case 'SET_AXIS':
-                    if (intent.payload.axis === 'x') {
-                        if (intent.payload.min !== undefined) setXAxisMinStr(String(intent.payload.min));
-                        if (intent.payload.max !== undefined) setXAxisMaxStr(String(intent.payload.max));
-                    } else if (intent.payload.axis === 'y') {
-                        if (intent.payload.min !== undefined) setYAxisMin(intent.payload.min);
-                        if (intent.payload.max !== undefined) setYAxisMax(intent.payload.max);
-                    }
-                    break;
-
-                case 'TOGGLE_VISIBILITY':
-                    if (intent.payload.element === 'legend') {
-                        setShowLegend(intent.payload.visible);
-                    } else if (intent.payload.element === 'keyPoints') {
-                        setShowKeyPoints(intent.payload.visible);
-                    }
-                    break;
-
-                case 'OPTIMIZE':
-                    handleOptimize();
-                    break;
-
-                default: // UNKNOWN
-                    // The botResponse is already set from the intent
-                    break;
-=======
         // Save current state for potential revert
         setPreviousState({
             styles,
@@ -873,11 +804,6 @@ const App: React.FC = () => {
                         if (intent.payload.target && intent.payload.properties) {
                             const newProperties = { ...intent.payload.properties };
                             console.log("App.tsx: Received properties from NLU:", newProperties);
-                            if (newProperties.color) {
-                                // Ensure color is converted to hex before setting style
-                                newProperties.color = toHex(newProperties.color);
-                                console.log("App.tsx: Converted color to hex for style update:", newProperties.color);
-                            }
                             setStyles(prev => ({
                                 ...prev,
                                 [intent.payload.target]: { ...prev[intent.payload.target], ...newProperties }
@@ -1000,21 +926,16 @@ const App: React.FC = () => {
                         // The botResponse is already set from the intent
                         break;
                 }
->>>>>>> Stashed changes
             }
 
             setChatMessages([...newMessages, { text: botResponse, sender: 'bot' }]);
         } catch (error) {
             console.error("Error processing command:", error);
-<<<<<<< Updated upstream
-            setChatMessages([...newMessages, { text: "Sorry, a critical error occurred.", sender: 'bot' }]);
-=======
             if (error instanceof Error) {
                 setChatMessages([...newMessages, { text: `Sorry, a critical error occurred: ${error.message}. Please check the console for details.`, sender: 'bot' }]);
             } else {
                 setChatMessages([...newMessages, { text: "Sorry, a critical error occurred. Please check the console for details.", sender: 'bot' }]);
             }
->>>>>>> Stashed changes
         } finally {
             setIsChatProcessing(false);
         }
@@ -1253,13 +1174,10 @@ const App: React.FC = () => {
                                     onSendMessage={handleSendMessage}
                                     messages={chatMessages}
                                     isProcessing={isChatProcessing}
-<<<<<<< Updated upstream
-=======
                                     apiService={apiService}
                                     setApiService={setApiService}
                                     selectedModel={selectedModel}
                                     setSelectedModel={setSelectedModel}
->>>>>>> Stashed changes
                                 />
                             </div>
                         </div>

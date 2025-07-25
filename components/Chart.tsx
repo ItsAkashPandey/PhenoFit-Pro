@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  ResponsiveContainer, ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot, Label, ReferenceArea, ReferenceLine, Symbols
+  ResponsiveContainer, ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid, ReferenceDot, Label, ReferenceArea, ReferenceLine, Symbols
 } from 'recharts';
 import { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { Point, KeyPoints, GroupingData, StyleTarget, ChartStyles, ChartElementPositions, DraggablePosition, MarkerStyle } from '../types';
@@ -93,7 +93,7 @@ interface ChartProps {
   styles: ChartStyles;
   positions: ChartElementPositions;
   onElementClick: (e: any, target: StyleTarget, index?: number) => void;
-  onDragStart: (e: React.MouseEvent, target: 'legend' | 'groupingLabel', index?: number, dragInfo?: any) => void;
+  onDragStart: (e: React.MouseEvent, target: 'legend' | 'groupingLabel' | 'stylePicker', index?: number, dragInfo?: any) => void;
   isDateAxis: boolean;
   isCircularAxis: boolean;
   chartAreaRef: React.RefObject<HTMLDivElement>;
@@ -103,13 +103,13 @@ interface ChartProps {
   showLegend: boolean;
   xAxisDomain: (number | undefined)[];
   yAxisDomain: (number | undefined)[];
-  isDragging: boolean;
   onLegendSizeChange: (size: { width: number; height: number }) => void;
   isRightPanelOpen: boolean;
+  isLegendManuallyPositioned: boolean;
   setIsLegendManuallyPositioned: (isManuallyPositioned: boolean) => void;
 }
 
-const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis, chartAreaRef, xAxisLabel, yAxisLabel, onAxisLabelClick, showLegend, xAxisDomain, yAxisDomain, isDragging, onLegendSizeChange, isRightPanelOpen, isLegendManuallyPositioned, setIsLegendManuallyPositioned }) => {
+const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis, chartAreaRef, xAxisLabel, yAxisLabel, onAxisLabelClick, showLegend, xAxisDomain, yAxisDomain, onLegendSizeChange, isRightPanelOpen, isLegendManuallyPositioned, setIsLegendManuallyPositioned }) => {
   const allDataForDomain = [...observedData, ...pendingRemovalData];
   const yDataDomain = allDataForDomain.length > 0 
     ? [Math.min(...allDataForDomain.map(p => p.y)), Math.max(...allDataForDomain.map(p => p.y))]
@@ -136,7 +136,7 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
   };
 
   // Legend box size state
-  const [legendSize, setLegendSize] = useState<{width: number, height: number}>({ width: 240, height: 80 });
+  const [legendSize, setLegendSize] = useState<{width: number, height: number}>({ width: 0, height: 0 });
   const [isLegendManuallyResized, setIsLegendManuallyResized] = useState(false);
   const resizing = useRef<boolean | string>(false);
   const startPos = useRef<{x: number, y: number}>({x: 0, y: 0});
@@ -328,13 +328,17 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
         const color = toRgba(style.color, style.opacity);
 
         if (entry.type === 'scatter') {
-            if (style.shape === 'x') {
+            if (entry.type === 'scatter') {
+            // If shape is 'x' or 'cross', render the custom diagonal cross path
+            if (style.shape === 'x' || style.shape === 'cross') {
                 const halfSize = iconSize / 2;
-                return <path d={`M${halfSize - 4},${halfSize - 4}L${halfSize + 4},${halfSize + 4}M${halfSize + 4},${halfSize - 4}L${halfSize - 4},${halfSize + 4}`} stroke={color} strokeWidth={2} />;
-            } else if (style.shape === 'cross') {
-                return <Symbols cx={iconSize/2} cy={iconSize/2} type="cross" size={iconSize * 4} fill={color} />
+                return (
+                    <path d={`M${halfSize - 4},${halfSize - 4}L${halfSize + 4},${halfSize + 4}M${halfSize + 4},${halfSize - 4}L${halfSize - 4},${halfSize + 4}`} stroke={color} strokeWidth={2} />
+                );
             }
-            return <Symbols cx={iconSize/2} cy={iconSize/2} type={style.shape} size={iconSize * 4} fill={color} />
+            // For 'plus' or any other shape, use recharts.Symbols
+            return <Symbols cx={iconSize/2} cy={iconSize/2} type={style.shape === 'plus' ? 'cross' : style.shape} size={iconSize * 4} fill={color} />;
+        }
         }
         if (entry.type === 'line') {
             return <path d={`M0,${iconSize/2}h${iconSize}`} stroke={color} strokeWidth={3} strokeDasharray={style.strokeDasharray === '0' ? undefined : style.strokeDasharray} />
@@ -385,21 +389,18 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
       if (cx === undefined || cy === undefined) return null;
       const rgbaColor = toRgba(color, opacity);
 
-      const renderSymbol = () => {
-          if (shape === 'x') {
-              const halfSize = size / 1.5;
-              return <path d={`M${cx - halfSize},${cy - halfSize}L${cx + halfSize},${cy + halfSize}M${cx + halfSize},${cy - halfSize}L${cx - halfSize},${cy + halfSize}`} stroke={rgbaColor} strokeWidth={2} style={{ pointerEvents: 'none' }} />;
-          } else if (shape === 'cross') {
-              return <Symbols cx={cx} cy={cy} type="cross" size={size * size} fill={rgbaColor} style={{ pointerEvents: 'none' }} />;
-          }
-          return <Symbols cx={cx} cy={cy} type={shape} size={size * size} fill={rgbaColor} style={{ pointerEvents: 'none' }} />;
-      };
-
       const hitboxSize = Math.max(24, size * 2);
       return (
           <g onClick={clickHandler} style={{ cursor: 'pointer' }}>
               <circle cx={cx} cy={cy} r={hitboxSize / 2} fill="transparent" />
-              {renderSymbol()}
+              {/* If shape is 'x' or 'cross', render the custom diagonal cross path */}
+              {(shape === 'x' || shape === 'cross') && (
+                  <path d={`M${cx - size / 1.5},${cy - size / 1.5}L${cx + size / 1.5},${cy + size / 1.5}M${cx + size / 1.5},${cy - size / 1.5}L${cx - size / 1.5},${cy + size / 1.5}`} stroke={rgbaColor} strokeWidth={2} style={{ pointerEvents: 'none' }} />
+              )}
+              {/* For 'plus' or any other shape, use recharts.Symbols */}
+              {(shape !== 'x' && shape !== 'cross') && (
+                  <Symbols cx={cx} cy={cy} type={shape === 'plus' ? 'cross' : shape} size={size * size} fill={rgbaColor} style={{ pointerEvents: 'none' }} />
+              )}
           </g>
       );
   };

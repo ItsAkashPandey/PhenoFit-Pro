@@ -107,7 +107,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
         });
     }
     return configs;
-  }, [curveModel, isDateAxis, xDomain]);
+  }, [curveModel, isDateAxis]);
   
   const cardTitleClass = "text-accent-blue-on-panel";
   const labelClass = "text-on-panel-secondary";

@@ -1,15 +1,11 @@
 import React from 'react';
 import { KeyPoints, FitParameters, CurveModel } from '../types';
-import Card from './ui/Card';
 import Button from './ui/Button';
 
 interface ResultsPanelProps {
     stats: { r2: number; rmse: number };
     keyPoints: KeyPoints;
-    parameters: FitParameters;
-    curveModel: CurveModel;
     isDateAxis: boolean;
-    isDataLoaded: boolean;
     onDownload: () => void;
 }
 
