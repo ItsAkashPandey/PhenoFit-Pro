@@ -12,7 +12,7 @@ interface GroupingDialogProps {
 const GroupingDialog: React.FC<GroupingDialogProps> = ({ columns, onSubmit, onCancel }) => {
     const [startCol, setStartCol] = useState(columns[0] || '');
     const [endCol, setEndCol] = useState<string>('');
-    const [labelCol, setLabelCol] = useState<string>(columns.length > 1 ? columns[1] : columns[0] || '');
+    const [labelCol, setLabelCol] = useState<string>('');
 
     const handleSubmit = () => {
         if (!startCol) {

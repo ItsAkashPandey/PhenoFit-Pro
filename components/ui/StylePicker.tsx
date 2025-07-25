@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { StylePickerState, StyleTarget, LineStyle, MarkerStyle, TextStyle, BackgroundStyle, GridStyle, LegendStyle, MarkerShape } from '../../types';
 import { HexColorPicker } from 'react-colorful';
-import ParameterSlider from './ParameterSlider';
-import Select from './Select';
-import ColorPicker from './ColorPicker';
 
 const LINE_STYLES = [
     { name: 'Solid', value: '0' }, { name: 'Dashed', value: '5 5' }, { name: 'Dotted', value: '1 5' },
@@ -28,8 +25,7 @@ interface StylePickerProps extends StylePickerState {
 
 const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, currentStyle, onStyleChange, onClose, onDragStart, xAxisLabel, yAxisLabel, setXAxisLabel, setYAxisLabel }) => {
     const pickerRef = React.useRef<HTMLDivElement>(null);
-    const [openSection, setOpenSection] = useState<string>('');
-    const [sectionEnabled, setSectionEnabled] = useState<{[key: string]: boolean}>({});
+    
 
     // --- Fix: activeTab must be a valid tab for the current target ---
     // Define tab keys for each target
@@ -160,32 +156,10 @@ const StylePicker: React.FC<StylePickerProps> = ({ visible, top, left, target, c
 
     const targetName = `Edit ${target.replace(/([A-Z])/g, ' $1').replace('Styles', '').replace('chart ', '').trim()} Style`;
 
-    const Collapsible = ({ title, sectionKey, children }: { title: string, sectionKey: string, children: React.ReactNode }) => (
-        <div className="mb-2">
-            <button
-                className="w-full text-left font-bold py-1 px-2 bg-gray-100 rounded hover:bg-gray-200 focus:outline-none"
-                onClick={() => setOpenSection(openSection === sectionKey ? '' : sectionKey)}
-            >
-                {title}
-            </button>
-            {openSection === sectionKey && (
-                <div className="mt-2 pl-2 pr-1">{children}</div>
-            )}
-        </div>
-    );
+    
 
     // 2. Helper to render a toggle for a section
-    const renderSectionToggle = (sectionKey: string, label: string) => (
-      <div className="flex items-center mb-1">
-        <input
-          type="checkbox"
-          className="h-4 w-4 rounded text-accent-pink focus:ring-accent-pink bg-item-bg-on-panel border-panel-border"
-          checked={sectionEnabled[sectionKey] !== false}
-          onChange={e => setSectionEnabled(prev => ({ ...prev, [sectionKey]: !!e.target.checked }))}
-        />
-        <label className="ml-2 text-sm font-medium text-on-panel-primary">{label}</label>
-      </div>
-    );
+    
 
     // 1. Add a Tabs component for all style popups (legend, axis, background, points, line, etc.)
     // 2. Remove section toggles from inside tabs (no 'Show layout style' or 'Show colors style' inside tabs)
