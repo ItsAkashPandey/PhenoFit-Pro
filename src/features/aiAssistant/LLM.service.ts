@@ -412,18 +412,54 @@ CRITICAL: Keep explanation SHORT and clear. Maximum 2-3 sentences. Stay in chara
     return LLM_MODELS.find(m => m.id === id);
   }
 
-  // Test API connection
+  // Test API connection with direct API call (bypasses validation)
   async testConnection(model: string = 'mistralai/mistral-7b-instruct'): Promise<boolean> {
+    if (!this.apiKey || this.apiKey.trim() === '') {
+      console.error('No API key set for testing');
+      return false;
+    }
+
     try {
-      const response = await this.generateText({
-        systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'Say "Connection test successful" and nothing else.',
-        model,
-        maxTokens: 10,
+      const payload = {
+        model: model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant.'
+          },
+          {
+            role: 'user',
+            content: 'Say "Connection test successful" and nothing else.'
+          }
+        ],
+        max_tokens: 10,
         temperature: 0
+      };
+
+      const response = await fetch(this.baseURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'PhenoFit Pro AI Assistant'
+        },
+        body: JSON.stringify(payload)
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API test failed:', response.status, errorData);
+        return false;
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content;
       
-      return response.content.includes('Connection test successful');
+      console.log('Test connection response:', content);
+      
+      return content && content.includes('Connection test successful');
+      
     } catch (error) {
       console.error('Connection test failed:', error);
       return false;

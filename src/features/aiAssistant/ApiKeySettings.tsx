@@ -35,13 +35,28 @@ export const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ isOpen, onClose 
       return;
     }
 
+    if (apiKey.length < 60) {
+      setErrorMessage('API key seems too short. OpenRouter keys are typically 70+ characters long.');
+      return;
+    }
+
     setIsTestingConnection(true);
     setErrorMessage('');
+    setIsValid(null);
 
     try {
-      // Test the API key
+      // Set the API key first
       LLMService.setApiKey(apiKey.trim());
+      
+      // Small delay to ensure the key is set
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('Testing API key:', apiKey.substring(0, 15) + '...');
+      
+      // Test the API key
       const testResult = await LLMService.testConnection();
+      
+      console.log('Test result:', testResult);
       
       if (testResult) {
         setIsValid(true);
@@ -52,11 +67,25 @@ export const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ isOpen, onClose 
         }, 1500);
       } else {
         setIsValid(false);
-        setErrorMessage('API key test failed. Please check if the key is valid and has sufficient quota.');
+        setErrorMessage('API key test failed. Please check if the key is valid and has sufficient quota. Make sure you copied the complete key from OpenRouter.');
       }
     } catch (error) {
       setIsValid(false);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to test API key';
+      console.error('API key test error:', error);
+      
+      let errorMsg = 'Failed to test API key';
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          errorMsg = 'Network error: Unable to connect to OpenRouter API. Please check your internet connection.';
+        } else if (error.message.includes('quota') || error.message.includes('429')) {
+          errorMsg = 'API quota exceeded. Please check your OpenRouter account or try a different key.';
+        } else if (error.message.includes('401') || error.message.includes('unauthorized')) {
+          errorMsg = 'Invalid API key. Please verify you copied the complete key from OpenRouter.';
+        } else {
+          errorMsg = `API test failed: ${error.message}`;
+        }
+      }
+      
       setErrorMessage(errorMsg);
     } finally {
       setIsTestingConnection(false);
