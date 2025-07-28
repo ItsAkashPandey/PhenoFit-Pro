@@ -11,6 +11,7 @@ import NLUService from './NLU.service';
 import { DialogueService } from './Dialogue.service';
 import LLMService from './LLM.service';
 import ActionService from './Action.service';
+import ApiKeySettings from './ApiKeySettings';
 
 interface AIAssistantProps {
   appSetters: AppStateSetters;
@@ -59,6 +60,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
   const [isProcessing, setIsProcessing] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isPersonaDropdownOpen, setIsPersonaDropdownOpen] = useState(false);
+  const [isApiKeySettingsOpen, setIsApiKeySettingsOpen] = useState(false);
   const [failureCount, setFailureCount] = useState(0);
   const [canStopProcessing, setCanStopProcessing] = useState(false);
   const [currentAbortController, setCurrentAbortController] = useState<AbortController | null>(null);
@@ -630,16 +632,28 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
           </div>
         </div>
         
-        <button
-          onClick={() => setIsConfigOpen(!isConfigOpen)}
-          className="p-2 text-on-panel-secondary hover:text-on-panel-primary hover:bg-item-hover-on-panel rounded-lg transition-all duration-200 hover:shadow-md"
-          title="Settings"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsApiKeySettingsOpen(!isApiKeySettingsOpen)}
+            className="p-2 text-on-panel-secondary hover:text-on-panel-primary hover:bg-item-hover-on-panel rounded-lg transition-all duration-200 hover:shadow-md"
+            title="API Key Settings"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-3.586l8.257-8.257A6 6 0 0119 9z" />
+            </svg>
+          </button>
+          
+          <button
+            onClick={() => setIsConfigOpen(!isConfigOpen)}
+            className="p-2 text-on-panel-secondary hover:text-on-panel-primary hover:bg-item-hover-on-panel rounded-lg transition-all duration-200 hover:shadow-md"
+            title="Settings"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Modern Configuration Panel */}
@@ -723,6 +737,18 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Key Settings Panel */}
+      {isApiKeySettingsOpen && (
+        <div className="border-b border-panel-border bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+          <div className="p-4">
+            <ApiKeySettings 
+              isOpen={isApiKeySettingsOpen}
+              onClose={() => setIsApiKeySettingsOpen(false)} 
+            />
           </div>
         </div>
       )}

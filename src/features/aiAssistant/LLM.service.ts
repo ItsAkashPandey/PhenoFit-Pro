@@ -26,21 +26,26 @@ export class LLMService {
   private apiKey: string = '';
   private baseURL = 'https://openrouter.ai/api/v1/chat/completions';
   
-  // Multiple API keys for fallback
-  private apiKeys: string[] = [
-    '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',
-    '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'
-  ];
+  // Multiple API keys for fallback (users can add their own)
+  private apiKeys: string[] = [];
   private currentApiKeyIndex: number = 0;
   
   private constructor() {
-    // Try to load API key from environment, localStorage, or use fallback
+    // Try to load API key from environment or localStorage
     this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || 
-                  localStorage.getItem('openrouter_api_key') || 
-                  this.apiKeys[0] || '';
+                  localStorage.getItem('openrouter_api_key') || '';
     
-    if (!localStorage.getItem('openrouter_api_key') && this.apiKeys.length > 0) {
-      this.apiKey = this.apiKeys[0];
+    // Load additional API keys from localStorage if available
+    const storedKeys = localStorage.getItem('openrouter_api_keys');
+    if (storedKeys) {
+      try {
+        this.apiKeys = JSON.parse(storedKeys);
+        if (this.apiKeys.length > 0 && !this.apiKey) {
+          this.apiKey = this.apiKeys[0];
+        }
+      } catch (e) {
+        console.warn('Failed to parse stored API keys');
+      }
     }
   }
   
@@ -55,6 +60,46 @@ export class LLMService {
   setApiKey(apiKey: string): void {
     this.apiKey = apiKey;
     localStorage.setItem('openrouter_api_key', apiKey);
+  }
+
+  // Add multiple API keys for fallback
+  addApiKeys(apiKeys: string[]): void {
+    this.apiKeys = [...new Set([...this.apiKeys, ...apiKeys])]; // Remove duplicates
+    localStorage.setItem('openrouter_api_keys', JSON.stringify(this.apiKeys));
+    
+    // If no primary key is set, use the first one
+    if (!this.apiKey && this.apiKeys.length > 0) {
+      this.apiKey = this.apiKeys[0];
+      localStorage.setItem('openrouter_api_key', this.apiKey);
+    }
+  }
+
+  // Get all configured API keys (masked for security)
+  getApiKeys(): string[] {
+    return this.apiKeys.map(key => 
+      key.length > 10 ? `${key.substring(0, 10)}...${key.substring(key.length - 4)}` : '***'
+    );
+  }
+
+  // Remove an API key by index
+  removeApiKey(index: number): void {
+    if (index >= 0 && index < this.apiKeys.length) {
+      this.apiKeys.splice(index, 1);
+      localStorage.setItem('openrouter_api_keys', JSON.stringify(this.apiKeys));
+      
+      // If we removed the current key, switch to another
+      if (this.currentApiKeyIndex >= this.apiKeys.length) {
+        this.currentApiKeyIndex = 0;
+      }
+      
+      if (this.apiKeys.length > 0) {
+        this.apiKey = this.apiKeys[this.currentApiKeyIndex];
+        localStorage.setItem('openrouter_api_key', this.apiKey);
+      } else {
+        this.apiKey = '';
+        localStorage.removeItem('openrouter_api_key');
+      }
+    }
   }
 
   // Get current API key
@@ -96,7 +141,7 @@ export class LLMService {
   // Generate text using LLM with API key rotation and quota handling
   async generateText(request: LLMRequest): Promise<LLMResponse> {
     if (!this.isConfigured()) {
-      throw new Error('OpenRouter API key not configured');
+      throw new Error('AI Assistant requires an OpenRouter API key to function. Please configure your API key in the settings. You can get a free API key at https://openrouter.ai/settings/keys');
     }
 
     const payload = {
@@ -148,7 +193,7 @@ export class LLMService {
               continue; // Try with next API key
             } else {
               // No more API keys to try
-              throw new Error('Our API request limit exceeded. Please either use your own OpenRouter API key (which can be obtained for free at https://openrouter.ai/settings/keys), or wait 24 hours before resuming chat again.');
+              throw new Error('API request limit exceeded. To continue using the AI Assistant, please add your own free OpenRouter API key at https://openrouter.ai/settings/keys. You can add it in the AI Assistant settings.');
             }
           }
           
@@ -214,16 +259,16 @@ export class LLMService {
     // Provide more specific error messages
     if (lastError instanceof Error) {
       if (lastError.message.includes('API key')) {
-        throw new Error('OpenRouter API key not configured. Please set up your API key in settings.');
+        throw new Error('AI Assistant requires an OpenRouter API key. Please add your free API key from https://openrouter.ai/settings/keys in the AI settings.');
       } else if (lastError.message.includes('quota') || lastError.message.includes('limit exceeded')) {
-        throw new Error('Our API request limit exceeded. Please either use your own OpenRouter API key (which can be obtained for free at https://openrouter.ai/settings/keys), or wait 24 hours before resuming chat again.');
+        throw new Error('API request limit exceeded. Please add your own free OpenRouter API key from https://openrouter.ai/settings/keys to continue using the AI Assistant.');
       } else if (lastError.message.includes('fetch')) {
         throw new Error('Network error: Unable to connect to OpenRouter API. Please check your internet connection.');
       } else {
         throw lastError;
       }
     }
-    throw new Error('Failed to generate response from AI model.');
+    throw new Error('Failed to generate response from AI model. Please check your API key configuration.');
   }
 
   // Generate persona-based response
