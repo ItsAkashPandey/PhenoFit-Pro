@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Add legend sizing constraints */
+.phenofit-legend {
+  min-width: fit-content;
+  max-width: 100%;
+}
+
+@layer utilities {
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.8s ease-out forwards;
+  }
+
+  @keyframes dash {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .animate-dash path {
+    stroke-dasharray: 200;
+    stroke-dashoffset: 200;
+    animation: dash 1.5s ease-in-out forwards;
+  }
+
+  @keyframes dash {
+    from {
+      stroke-dashoffset: 200;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .animate-dash path {
+    stroke-dasharray: 200;
+    stroke-dashoffset: 200;
+    animation: dash 1.5s ease-in-out forwards;
+  }
+}

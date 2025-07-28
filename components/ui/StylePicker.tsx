@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
-import { StylePickerState, StyleTarget, LineStyle, MarkerStyle, TextStyle, BackgroundStyle, GridStyle, LegendStyle, MarkerShape } from '../../types';
+import { StylePickerState, LineStyle, MarkerStyle, TextStyle, BackgroundStyle, GridStyle, LegendStyle, MarkerShape } from '../../types';
 import { HexColorPicker } from 'react-colorful';
-import ParameterSlider from './ParameterSlider';
-import Select from './Select';
-import ColorPicker from './ColorPicker';
 
 const LINE_STYLES = [
     { name: 'Solid', value: '0' }, { name: 'Dashed', value: '5 5' }, { name: 'Dotted', value: '1 5' },

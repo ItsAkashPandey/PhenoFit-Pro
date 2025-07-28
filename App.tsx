@@ -7,20 +7,11 @@ import GroupingDialog from './components/GroupingDialog';
 import StylePicker from './components/ui/StylePicker';
 import SheetSelectionDialog from './components/SheetSelectionDialog';
 import ResultsPanel from './components/ResultsPanel';
-import ChatPanel from './components/ChatPanel';
-<<<<<<< Updated upstream
+import AIAssistant from './src/features/aiAssistant/AIAssistant';
+import { AppStateSetters, AppStateGetters } from './src/features/aiAssistant/Action.service';
 import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle } from './types';
 import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
 import { downloadChartImage, downloadExcelData } from './services/downloadService';
-import { parseCommand } from './services/nluService';
-=======
-import { Point, CurveModel, FitParameters, KeyPoints, GroupingConfig, GroupingData, StylePickerState, StyleTarget, ChartStyles, LineStyle, MarkerStyle, TextStyle, ChartElementPositions, DraggablePosition, BackgroundStyle, OutlierMethod, GridStyle, LegendStyle, ApiService, OpenRouterModel, GeminiModel } from './types';
-import { doubleLogistic, singleLogistic, loess, movingAverage, savitzkyGolay, optimizeParameters } from './services/curveFitService';
-import { downloadChartImage, downloadExcelData } from './services/downloadService';
-import { parseCommand } from './services/nluService';
-
-import { toHex } from './services/colorUtils';
->>>>>>> Stashed changes
 
 const SPECTRAL_PALETTE = [ '#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#d53e4f', '#9e0142' ];
 
@@ -63,11 +54,6 @@ type DragState = {
     initialY: number;
     dragInfo?: DragInfo;
 };
-
-interface Message {
-    text: string;
-    sender: 'user' | 'bot';
-}
 
 const parseDateValue = (value: any): number | null => {
   if (value instanceof Date && !isNaN(value.getTime())) {
@@ -117,15 +103,6 @@ const App: React.FC = () => {
     const [legendSize, setLegendSize] = useState({ width: 240, height: 80 });
     const [isLegendManuallyPositioned, setIsLegendManuallyPositioned] = useState(false);
 
-    // Chat State
-    const [chatMessages, setChatMessages] = useState<Message[]>([]);
-    const [isChatProcessing, setIsChatProcessing] = useState(false);
-<<<<<<< Updated upstream
-=======
-    const [apiService, setApiService] = useState<ApiService>(ApiService.OPENROUTER);
-    const [selectedModel, setSelectedModel] = useState<string>(OpenRouterModel.MISTRAL_7B_INSTRUCT);
->>>>>>> Stashed changes
-
     const handleLegendSizeChange = useCallback((size: { width: number; height: number }) => {
         setLegendSize(size);
     }, []);
@@ -148,7 +125,6 @@ const App: React.FC = () => {
         L: 0.7, k: 0.1, x0: 125, span: 0.5, windowSize: 15,
     });
     const [lockedParams, setLockedParams] = useState<Set<keyof FitParameters>>(new Set());
-    const [hasUserOptimized, setHasUserOptimized] = useState(false);
 
     // UI & Chart State
     const [fittedData, setFittedData] = useState<Point[]>([]);
@@ -177,7 +153,6 @@ const App: React.FC = () => {
 
     const [xAxisLabel, setXAxisLabel] = useState(selectedXCol || 'X-Axis');
     const [yAxisLabel, setYAxisLabel] = useState(selectedYCol || 'Y-Axis');
-    const [previousState, setPreviousState] = useState<any>(null);
 
     const estimateSmartParameters = useCallback((data: Point[], isDate: boolean): Partial<FitParameters> => {
         if (data.length < 10) return {};
@@ -217,7 +192,6 @@ const App: React.FC = () => {
 
     const processLoadedData = (data: any[]) => {
         if (!data || data.length === 0) return alert("File is empty.");
-        setHasUserOptimized(false);
         setLockedParams(new Set());
         setRawData(data);
         const cols = Object.keys(data[0] || {});
@@ -244,7 +218,13 @@ const App: React.FC = () => {
     const readFile = (file: File, callback: (data: any[], sheetName?: string) => void) => {
         const fileType = file.name.split('.').pop()?.toLowerCase();
         if (fileType === 'csv') {
-            Papa.parse(file, { header: true, dynamicTyping: true, skipEmptyLines: true, complete: (res: Papa.ParseResult<any>) => callback(res.data as any[]), error: (err: Papa.ParseError) => alert(`Error: ${err.message}`) });
+            Papa.parse(file, { 
+                header: true, 
+                dynamicTyping: true, 
+                skipEmptyLines: true, 
+                complete: (res: Papa.ParseResult<any>) => callback(res.data as any[]), 
+                error: (err: Error) => alert(`Error: ${err.message}`) 
+            });
         } else if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'xlsm' || fileType === 'xlsb') {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -592,7 +572,6 @@ const App: React.FC = () => {
             }
 
             setParameters((prev: FitParameters) => ({...prev, ...optimizedDenormParams}));
-            setHasUserOptimized(true);
         } catch (error) {
             console.error("Optimization failed:", error);
         } finally {
@@ -714,28 +693,11 @@ const App: React.FC = () => {
             setElementPositions(prev => ({...prev, legend: { x: newX, y: newY } }));
             return;
         }
-        
         if (dragState.target === 'groupingLabel' && dragState.index !== undefined) {
-            if (dragState.dragInfo) { // This is a ReferenceArea label
-                const { areaBounds, labelBase } = dragState.dragInfo;
-                
-                // Constrain within the reference area's viewport coordinates
-                const minX = areaBounds.x - labelBase.x;
-                const maxX = areaBounds.x + areaBounds.width - labelBase.x;
-                const minY = areaBounds.y - labelBase.y;
-                const maxY = areaBounds.y + areaBounds.height - labelBase.y;
-
-                newX = Math.max(minX, Math.min(newX, maxX));
-                newY = Math.max(minY, Math.min(newY, maxY));
-
-            } else { // This is a ReferenceLine label, restrict to Y-axis movement
-                newX = dragState.initialX; // Keep original X
-            }
-            
             setElementPositions((prev: ChartElementPositions) => {
                 const newPositions = {...prev};
                 const newLabels = [...prev.groupingLabels];
-                newLabels[dragState.index] = { x: newX, y: newY };
+                newLabels[dragState.index!] = { x: newX, y: newY };
                 newPositions.groupingLabels = newLabels;
                 return newPositions;
             });
@@ -746,7 +708,7 @@ const App: React.FC = () => {
             const newPositions = {...prev};
             if (dragState.target === 'groupingLabel' && dragState.index !== undefined) {
                 const newLabels = [...prev.groupingLabels];
-                newLabels[dragState.index] = { x: newX, y: newY };
+                newLabels[dragState.index!] = { x: newX, y: newY };
                 newPositions.groupingLabels = newLabels;
             }
             return newPositions;
@@ -772,252 +734,6 @@ const App: React.FC = () => {
         setIsSheetSelectionVisible(false);
         setExcelWorkbook(null);
         setSheetNames([]);
-    };
-
-<<<<<<< Updated upstream
-    const handleSendMessage = async (message: string) => {
-=======
-    const handleSendMessage = async (message: string, service: ApiService) => {
->>>>>>> Stashed changes
-        const newMessages: Message[] = [...chatMessages, { text: message, sender: 'user' }];
-        setChatMessages(newMessages);
-        setIsChatProcessing(true);
-
-<<<<<<< Updated upstream
-        try {
-            const intent = await parseCommand(message, columns, styles);
-            let botResponse = intent.response || "I have processed your request.";
-
-            switch (intent.action) {
-                case 'PLOT':
-                    if (intent.payload.x_column && intent.payload.y_column) {
-                        setSelectedXCol(intent.payload.x_column);
-                        setSelectedYCol(intent.payload.y_column);
-                    } else {
-                        botResponse = "I understood you want to plot, but I couldn't identify the X and Y columns. Please be more specific, like 'plot NDVI vs Date'.";
-                    }
-                    break;
-
-                case 'STYLE':
-                    if (intent.payload.target && intent.payload.properties) {
-                        setStyles(prev => ({
-                            ...prev,
-                            [intent.payload.target]: { ...prev[intent.payload.target], ...intent.payload.properties }
-                        }));
-                    } else {
-                        botResponse = "I understood you want to change a style, but I couldn't determine what to change.";
-                    }
-                    break;
-
-                case 'SET_AXIS':
-                    if (intent.payload.axis === 'x') {
-                        if (intent.payload.min !== undefined) setXAxisMinStr(String(intent.payload.min));
-                        if (intent.payload.max !== undefined) setXAxisMaxStr(String(intent.payload.max));
-                    } else if (intent.payload.axis === 'y') {
-                        if (intent.payload.min !== undefined) setYAxisMin(intent.payload.min);
-                        if (intent.payload.max !== undefined) setYAxisMax(intent.payload.max);
-                    }
-                    break;
-
-                case 'TOGGLE_VISIBILITY':
-                    if (intent.payload.element === 'legend') {
-                        setShowLegend(intent.payload.visible);
-                    } else if (intent.payload.element === 'keyPoints') {
-                        setShowKeyPoints(intent.payload.visible);
-                    }
-                    break;
-
-                case 'OPTIMIZE':
-                    handleOptimize();
-                    break;
-
-                default: // UNKNOWN
-                    // The botResponse is already set from the intent
-                    break;
-=======
-        // Save current state for potential revert
-        setPreviousState({
-            styles,
-            xAxisLabel,
-            yAxisLabel,
-            showLegend,
-            showKeyPoints,
-            xAxisMin,
-            xAxisMax,
-            yAxisMin,
-            yAxisMax,
-            parameters,
-            lockedParams
-        });
-
-        try {
-            const modelConfig = {
-                service: apiService,
-                modelName: selectedModel
-            };
-            const nluResponse = await parseCommand(message, columns, styles, modelConfig);
-            let botResponse = nluResponse.response || "I have processed your request.";
-
-            for (const intent of nluResponse.actions) {
-                switch (intent.action) {
-                    case 'PLOT':
-                        if (intent.payload.x_column && intent.payload.y_column) {
-                            setSelectedXCol(intent.payload.x_column);
-                            setSelectedYCol(intent.payload.y_column);
-                        } else {
-                            botResponse = "I understood you want to plot, but I couldn't identify the X and Y columns. Please be more specific, like 'plot NDVI vs Date'.";
-                        }
-                        break;
-
-                    case 'STYLE':
-                        if (intent.payload.target && intent.payload.properties) {
-                            const newProperties = { ...intent.payload.properties };
-                            console.log("App.tsx: Received properties from NLU:", newProperties);
-                            if (newProperties.color) {
-                                // Ensure color is converted to hex before setting style
-                                newProperties.color = toHex(newProperties.color);
-                                console.log("App.tsx: Converted color to hex for style update:", newProperties.color);
-                            }
-                            setStyles(prev => ({
-                                ...prev,
-                                [intent.payload.target]: { ...prev[intent.payload.target], ...newProperties }
-                            }));
-                        } else {
-                            botResponse = "I understood you want to change a style, but I couldn't determine what to change.";
-                        }
-                        break;
-
-                    case 'SET_AXIS':
-                        if (intent.payload.axis === 'x') {
-                            if (intent.payload.min !== undefined) setXAxisMinStr(String(intent.payload.min));
-                            if (intent.payload.max !== undefined) setXAxisMaxStr(String(intent.payload.max));
-                        } else if (intent.payload.axis === 'y') {
-                            if (intent.payload.min !== undefined) setYAxisMin(intent.payload.min);
-                            if (intent.payload.max !== undefined) setYAxisMax(intent.payload.max);
-                        }
-                        break;
-
-                    case 'TOGGLE_VISIBILITY':
-                        if (intent.payload.element === 'legend') {
-                            setShowLegend(intent.payload.visible);
-                        } else if (intent.payload.element === 'keyPoints') {
-                            setShowKeyPoints(intent.payload.visible);
-                        }
-                        break;
-
-                    case 'OPTIMIZE':
-                        console.log("Chatbot triggered OPTIMIZE action.");
-                        handleOptimize();
-                        break;
-
-                    case 'SET_LABEL':
-                        if (intent.payload.axis === 'x') {
-                            setXAxisLabel(intent.payload.text);
-                        } else if (intent.payload.axis === 'y') {
-                            setYAxisLabel(intent.payload.text);
-                        }
-                        break;
-
-                    case 'MOVE_ELEMENT':
-                        if (intent.payload.element === 'legend') {
-                            const chartRect = chartContainerRef.current?.getBoundingClientRect();
-                            if (chartRect) {
-                                let newX = elementPositions.legend.x;
-                                let newY = elementPositions.legend.y;
-                                const padding = 20;
-
-                                switch (intent.payload.position) {
-                                    case 'top left':
-                                        newX = padding;
-                                        newY = padding;
-                                        break;
-                                    case 'top right':
-                                        newX = chartRect.width - legendSize.width - padding;
-                                        newY = padding;
-                                        break;
-                                    case 'bottom left':
-                                        newX = padding;
-                                        newY = chartRect.height - legendSize.height - padding;
-                                        break;
-                                    case 'bottom right':
-                                        newX = chartRect.width - legendSize.width - padding;
-                                        newY = chartRect.height - legendSize.height - padding;
-                                        break;
-                                }
-                                setElementPositions(prev => ({...prev, legend: { x: newX, y: newY } }));
-                                setIsLegendManuallyPositioned(true);
-                            }
-                        }
-                        break;
-
-                    case 'SET_PARAMETER':
-                        if (intent.payload.parameter && intent.payload.value !== undefined) {
-                            setParameters(prev => ({ ...prev, [intent.payload.parameter]: intent.payload.value }));
-                            botResponse = `OK, I've set ${intent.payload.parameter} to ${intent.payload.value}.`;
-                        } else {
-                            botResponse = "I couldn't set the parameter. Please specify both the parameter name and value.";
-                        }
-                        break;
-
-                    case 'TOGGLE_PARAM_LOCK':
-                        if (intent.payload.parameter) {
-                            const paramToLock = intent.payload.parameter as keyof FitParameters;
-                            setLockedParams(prev => {
-                                const newSet = new Set(prev);
-                                if (intent.payload.locked) {
-                                    newSet.add(paramToLock);
-                                    botResponse = `OK, I've locked the ${paramToLock} parameter.`;
-                                } else {
-                                    newSet.delete(paramToLock);
-                                    botResponse = `OK, I've unlocked the ${paramToLock} parameter.`;
-                                }
-                                return newSet;
-                            });
-                        } else {
-                            botResponse = "I couldn't toggle the lock for the parameter. Please specify the parameter name.";
-                        }
-                        break;
-
-                    case 'REVERT':
-                        if (previousState) {
-                            setStyles(previousState.styles);
-                            setXAxisLabel(previousState.xAxisLabel);
-                            setYAxisLabel(previousState.yAxisLabel);
-                            setShowLegend(previousState.showLegend);
-                            setShowKeyPoints(previousState.showKeyPoints);
-                            setXAxisMin(previousState.xAxisMin);
-                            setXAxisMax(previousState.xAxisMax);
-                            setYAxisMin(previousState.yAxisMin);
-                            setYAxisMax(previousState.yAxisMax);
-                            setParameters(previousState.parameters);
-                            setLockedParams(previousState.lockedParams);
-                        } else {
-                            botResponse = "There is nothing to revert.";
-                        }
-                        break;
-
-                    default: // UNKNOWN
-                        // The botResponse is already set from the intent
-                        break;
-                }
->>>>>>> Stashed changes
-            }
-
-            setChatMessages([...newMessages, { text: botResponse, sender: 'bot' }]);
-        } catch (error) {
-            console.error("Error processing command:", error);
-<<<<<<< Updated upstream
-            setChatMessages([...newMessages, { text: "Sorry, a critical error occurred.", sender: 'bot' }]);
-=======
-            if (error instanceof Error) {
-                setChatMessages([...newMessages, { text: `Sorry, a critical error occurred: ${error.message}. Please check the console for details.`, sender: 'bot' }]);
-            } else {
-                setChatMessages([...newMessages, { text: "Sorry, a critical error occurred. Please check the console for details.", sender: 'bot' }]);
-            }
->>>>>>> Stashed changes
-        } finally {
-            setIsChatProcessing(false);
-        }
     };
 
     useEffect(() => {
@@ -1058,7 +774,7 @@ const App: React.FC = () => {
     }, [isRightPanelOpen, isLegendManuallyPositioned, legendSize, chartContainerRef]);
 
 
-    let currentStyleForPicker: Partial<LineStyle & MarkerStyle & TextStyle & BackgroundStyle & LegendStyle & GridStyle & { showGroupingLabels?: boolean }>;
+    let currentStyleForPicker: Partial<LineStyle & MarkerStyle & TextStyle & BackgroundStyle & LegendStyle & GridStyle & { showGroupingLabels?: boolean }> = {};
     if (stylePickerState.target) {
         if (stylePickerState.target === 'groupingStyles' && stylePickerState.targetIndex !== undefined) {
             currentStyleForPicker = {
@@ -1068,7 +784,7 @@ const App: React.FC = () => {
         } else if (stylePickerState.target === 'chartBackground') {
             currentStyleForPicker = {
                 ...styles.chartBackground,
-                grid: styles.grid
+                ...styles.grid
             }
         } else if (stylePickerState.target === 'legend') {
             currentStyleForPicker = {
@@ -1081,6 +797,43 @@ const App: React.FC = () => {
     }
 
     const logoSrc = useMemo(() => `${import.meta.env.BASE_URL || '/'}Pheno_Fit_Pro_Logo_2MB.png`, []);
+
+    // Create AI Assistant state interface
+    const appStateSetters: AppStateSetters = useMemo(() => ({
+        setStyles,
+        setCurveModel,
+        setParameters,
+        setLockedParams,
+        setShowLegend,
+        setShowKeyPoints,
+        setIsRightPanelOpen,
+        setXAxisLabel,
+        setYAxisLabel,
+        setXAxisMin,
+        setXAxisMax,
+        setYAxisMin,
+        setYAxisMax,
+        setIsOutlierRemovalEnabled,
+        handleOptimize,
+        handleApplyOutliers,
+        handleResetOutliers,
+        handleDownload
+    }), [setStyles, setCurveModel, setParameters, setLockedParams, setShowLegend, setShowKeyPoints, setIsRightPanelOpen, setXAxisLabel, setYAxisLabel, setXAxisMin, setXAxisMax, setYAxisMin, setYAxisMax, setIsOutlierRemovalEnabled, handleOptimize, handleApplyOutliers, handleResetOutliers, handleDownload]);
+
+    const appStateGetters: AppStateGetters = useMemo(() => ({
+        styles,
+        curveModel,
+        parameters,
+        lockedParams,
+        stats,
+        keyPoints,
+        showLegend,
+        showKeyPoints,
+        isDataLoaded,
+        isOptimizing,
+        pendingOutliersCount: pendingRemovalData.length,
+        confirmedOutliersCount: confirmedRemovedData.length
+    }), [styles, curveModel, parameters, lockedParams, stats, keyPoints, showLegend, showKeyPoints, isDataLoaded, isOptimizing, pendingRemovalData.length, confirmedRemovedData.length]);
 
 
     return (
@@ -1110,6 +863,38 @@ const App: React.FC = () => {
             />
 
             <div className="h-screen w-screen flex bg-body-bg font-sans">
+                {/* Get Started Here pointer - floating above left panel */}
+                {!isDataLoaded && (
+                    <div className="absolute left-[500px] top-[120px] -translate-x-10 flex items-center z-[99]" style={{width: '331.516px', left: '371px', top: '145px', transition: 'none'}}>
+                        <svg 
+                            width="150" 
+                            height="80" 
+                            viewBox="1 20 100 100" 
+                            className="text-blue-500 animate-pulse mr-2"
+                            style={{position: 'relative', width: '289px', transition: 'none'}}
+                        >
+                            <path 
+                                d="M 90 40 Q 50 20 10 40" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeDasharray="4,4"
+                                className="animate-pulse"
+                                style={{transition: 'none'}}
+                            />
+                            <polygon 
+                                points="15,36 5,40 15,44" 
+                                fill="currentColor"
+                            />
+                        </svg>
+                        <div className="bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg border border-blue-200 animate-bounce" style={{width: '166.516px', position: 'relative', left: '-54px', top: '-14px', transition: 'none'}}>
+                            <p className="text-blue-700 font-semibold text-sm whitespace-nowrap">
+                                🚀 Get Started Here!
+                            </p>
+                        </div>
+                    </div>
+                )}
+                
                 {/* Left Control Panel */}
                 <aside className="w-[450px] flex-shrink-0 h-full shadow-lg z-20 bg-panel-bg overflow-y-auto">
                     <ControlPanel
@@ -1155,13 +940,14 @@ const App: React.FC = () => {
                                         onDragStart={handleDragStart}
                                         isDateAxis={isDateAxis}
                                         isCircularAxis={isCircularAxis}
-                                        chartAreaRef={chartContainerRef}
+                                        chartAreaRef={chartContainerRef as React.RefObject<HTMLDivElement>}
                                         xAxisLabel={xAxisLabel}
                                         yAxisLabel={yAxisLabel}
                                         onAxisLabelClick={(axis) => handleChartElementClick({}, axis === 'x' ? 'xAxis' : 'yAxis')}
                                         showLegend={showLegend}
                                         xAxisDomain={[xAxisMin, xAxisMax]}
                                         yAxisDomain={[yAxisMin, yAxisMax]}
+                                        isDragging={dragState.isDragging}
                                         onLegendSizeChange={handleLegendSizeChange}
                                         isRightPanelOpen={isRightPanelOpen}
                                         isLegendManuallyPositioned={isLegendManuallyPositioned}
@@ -1170,13 +956,32 @@ const App: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-200">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+                                {/* Animated background patterns */}
                                 <div className="absolute inset-0 bg-repeat bg-center opacity-5" style={{backgroundImage: `url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%239C92AC" fill-opacity="0.1"><path d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/></g></g></svg>')`}}></div>
-                                <div className="relative text-center p-8 animate-fade-in-up">
-                                    <img src={logoSrc} alt="PhenoFit Pro Logo" className="w-56 h-56 mb-6 mx-auto drop-shadow-2xl" />
-                                    <h2 className="text-4xl font-bold text-gray-800 tracking-tight">Welcome to PhenoFit Pro</h2>
-                                    <p className="mt-4 text-lg text-gray-600 max-w-md mx-auto">Your professional solution for analyzing phenological data with advanced curve fitting models.</p>
-                                    <p className="mt-8 text-md text-gray-500">To get started, please load a data file using the panel on the left.</p>
+                                
+                                {/* Floating geometric shapes */}
+                                <div className="absolute top-20 left-20 w-4 h-4 bg-blue-300 rounded-full opacity-30 animate-ping"></div>
+                                <div className="absolute top-40 right-32 w-6 h-6 bg-indigo-300 rounded-full opacity-40 animate-pulse"></div>
+                                <div className="absolute bottom-32 left-40 w-3 h-3 bg-purple-300 rounded-full opacity-50 animate-bounce"></div>
+                                
+                                <div className="relative text-center p-8 animate-fade-in-up max-w-4xl">
+                    {/* Gradient title */}
+                    <h2 className="text-6xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 bg-clip-text text-transparent tracking-tight mb-6 animate-pulse">
+                        Welcome to PhenoFit Pro
+                    </h2>
+                    
+                    <p className="mt-6 text-xl text-gray-700 max-w-2xl mx-auto leading-relaxed">
+                        Your professional solution for analyzing phenological data with advanced curve fitting models.
+                    </p>
+                                    {/* Large logo at bottom */}
+                                    <div className="mt-16">
+                                        <img 
+                                            src={logoSrc} 
+                                            alt="PhenoFit Pro Logo" 
+                                            className="w-auto h-[600px] mx-auto drop-shadow-2xl hover:scale-105 transition-transform duration-300 opacity-90 object-contain" 
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1197,78 +1002,79 @@ const App: React.FC = () => {
                     )}
                 </div>
                 
-                {/* Right Options Panel */}
-                <div className={`relative h-full bg-panel-bg transition-all duration-300 ease-in-out ${isDataLoaded ? '' : 'hidden'} ${isRightPanelOpen ? 'w-[350px]' : 'w-[40px]'} shadow-lg z-10 overflow-hidden`}>
+                {/* Right Options Panel - Only show when data is loaded */}
+                {isDataLoaded && (
+                    <div className={`relative h-full bg-panel-bg transition-all duration-300 ease-in-out ${isRightPanelOpen ? 'w-[400px]' : 'w-[40px]'} shadow-lg z-10 overflow-hidden`}>
                     {isRightPanelOpen && (
-                        <div className="p-4 text-on-panel-primary h-full flex flex-col">
-                            {/* Chart Options Section */}
-                            <div>
-                                <h3 className="text-lg font-bold mb-4">Chart Options</h3>
-                                <div className="space-y-4">
-                                    <div>
-                                        <h4 className="text-md font-semibold mb-2">Data Filtering</h4>
-                                        <div className="flex items-center">
-                                            <input type="checkbox" id="removeZeroValues" checked={removeZeroValues} onChange={e => setRemoveZeroValues(e.target.checked)} className="mr-2" />
-                                            <label htmlFor="removeZeroValues" className="text-on-panel-secondary">Remove 0 values</label>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <input type="checkbox" id="removeNaNValues" checked={removeNaNValues} onChange={e => setRemoveNaNValues(e.target.checked)} className="mr-2" />
-                                            <label htmlFor="removeNaNValues" className="text-on-panel-secondary">Remove NaN values</label>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <input type="checkbox" id="removeBlankValues" checked={removeBlankValues} onChange={e => setRemoveBlankValues(e.target.checked)} className="mr-2" />
-                                            <label htmlFor="removeBlankValues" className="text-on-panel-secondary">Remove blank values</label>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h4 className="text-md font-semibold mb-2">Legend</h4>
-                                        <div className="flex items-center">
-                                            <input type="checkbox" id="showLegend" checked={showLegend} onChange={e => setShowLegend(e.target.checked)} className="mr-2" />
-                                            <label htmlFor="showLegend" className="text-on-panel-secondary">Show Legend</label>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h4 className="text-md font-semibold mb-2">Axis Limits</h4>
-                                        <div className="flex flex-col space-y-2">
-                                            <label className="text-on-panel-secondary">X-Axis Min/Max:</label>
-                                            <div className="flex space-x-2">
-                                                <input type="text" value={xAxisMinStr} onChange={e => setXAxisMinStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
-                                                <input type="text" value={xAxisMaxStr} onChange={e => setXAxisMaxStr(e.target.value)} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
-                                                <button onClick={() => { setXAxisMinStr(''); setXAxisMaxStr(''); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                        <div className="h-full flex flex-col">
+                            {/* Chart Options Section - Takes most of the space */}
+                            {isDataLoaded && (
+                                <div className="flex-1 p-4 border-b border-gray-300 overflow-y-auto">
+                                    <h3 className="text-lg font-bold mb-4 text-on-panel-primary">Chart Options</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="text-base font-semibold mb-2 text-on-panel-primary">Filtering & Display</h4>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center">
+                                                    <input type="checkbox" id="removeZeroValues" checked={removeZeroValues} onChange={e => setRemoveZeroValues(e.target.checked)} className="mr-2" />
+                                                    <label htmlFor="removeZeroValues" className="text-on-panel-secondary text-sm">Remove 0 values</label>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <input type="checkbox" id="removeNaNValues" checked={removeNaNValues} onChange={e => setRemoveNaNValues(e.target.checked)} className="mr-2" />
+                                                    <label htmlFor="removeNaNValues" className="text-on-panel-secondary text-sm">Remove NaN values</label>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <input type="checkbox" id="removeBlankValues" checked={removeBlankValues} onChange={e => setRemoveBlankValues(e.target.checked)} className="mr-2" />
+                                                    <label htmlFor="removeBlankValues" className="text-on-panel-secondary text-sm">Remove blank values</label>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <input type="checkbox" id="showLegend" checked={showLegend} onChange={e => setShowLegend(e.target.checked)} className="mr-2" />
+                                                    <label htmlFor="showLegend" className="text-on-panel-secondary text-sm">Show Legend</label>
+                                                </div>
                                             </div>
-                                            <label className="text-on-panel-secondary">Y-Axis Min/Max:</label>
-                                            <div className="flex space-x-2">
-                                                <input type="number" value={yAxisMin ?? ''} onChange={e => setYAxisMin(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Min" />
-                                                <input type="number" value={yAxisMax ?? ''} onChange={e => setYAxisMax(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-1 rounded w-1/2 bg-white text-black" placeholder="Max" />
-                                                <button onClick={() => { setYAxisMin(undefined); setYAxisMax(undefined); }} className="bg-gray-200 px-2 py-1 rounded text-sm text-black">Reset</button>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-base font-semibold mb-2 text-on-panel-primary">Axis Limits</h4>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="text-on-panel-secondary text-sm block mb-2">X-Axis:</label>
+                                                    <div className="flex space-x-2">
+                                                        <input type="text" value={xAxisMinStr} onChange={e => setXAxisMinStr(e.target.value)} className="border p-2 rounded text-sm bg-white text-black w-20" placeholder="Min" />
+                                                        <input type="text" value={xAxisMaxStr} onChange={e => setXAxisMaxStr(e.target.value)} className="border p-2 rounded text-sm bg-white text-black w-20" placeholder="Max" />
+                                                        <button onClick={() => { setXAxisMinStr(''); setXAxisMaxStr(''); }} className="bg-gray-200 px-3 py-2 rounded text-sm text-black hover:bg-gray-300 flex-shrink-0">↻</button>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-on-panel-secondary text-sm block mb-2">Y-Axis:</label>
+                                                    <div className="flex space-x-2">
+                                                        <input type="number" value={yAxisMin ?? ''} onChange={e => setYAxisMin(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-2 rounded text-sm bg-white text-black w-20" placeholder="Min" />
+                                                        <input type="number" value={yAxisMax ?? ''} onChange={e => setYAxisMax(e.target.value === '' ? undefined : parseFloat(e.target.value))} className="border p-2 rounded text-sm bg-white text-black w-20" placeholder="Max" />
+                                                        <button onClick={() => { setYAxisMin(undefined); setYAxisMax(undefined); }} className="bg-gray-200 px-3 py-2 rounded text-sm text-black hover:bg-gray-300 flex-shrink-0">↻</button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
-                            {/* AI Assistant Section - pushed to the bottom */}
-                            <div className="mt-auto pt-4 flex-shrink-0">
-                                <ChatPanel
-                                    onSendMessage={handleSendMessage}
-                                    messages={chatMessages}
-                                    isProcessing={isChatProcessing}
-<<<<<<< Updated upstream
-=======
-                                    apiService={apiService}
-                                    setApiService={setApiService}
-                                    selectedModel={selectedModel}
-                                    setSelectedModel={setSelectedModel}
->>>>>>> Stashed changes
+                            {/* AI Assistant Section - Fixed at bottom */}
+                            <div className="h-[50vh] flex-shrink-0 border-t border-panel-border">
+                                <AIAssistant 
+                                    appSetters={appStateSetters} 
+                                    appGetters={appStateGetters}
+                                    className="h-full"
                                 />
                             </div>
                         </div>
                     )}
                     
                 </div>
-                {/* Collapse Button for Right Panel */}
+                )}
+                
+                {/* Collapse Button for Right Panel - Only show when data is loaded */}
                 {isDataLoaded && (
-                    <div className={`absolute top-1/2 -translate-y-1/2 z-40 transition-all duration-300 ease-in-out`} style={{ right: isRightPanelOpen ? '335px' : '25px' }}>
+                    <div className={`absolute top-1/2 -translate-y-1/2 z-40 transition-all duration-300 ease-in-out`} style={{ right: isRightPanelOpen ? '380px' : '20px' }}>
                         <button
                             className="bg-panel-bg p-2 rounded-full shadow-lg focus:outline-none ring-2 ring-white/50"
                             onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}

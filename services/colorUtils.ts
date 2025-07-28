@@ -1,58 +1,3 @@
-<<<<<<< Updated upstream
-
-// A utility to convert a color string (hex, rgb, or name) and an opacity value into an RGBA string.
-export const toRgba = (color: string, opacity: number = 1): string => {
-    if (color.startsWith('rgba')) {
-        // If it's already RGBA, just update the alpha value
-        return color.replace(/,s*[0-9.]+s*\)$/, `, ${opacity})`);
-    }
-
-    if (color.startsWith('rgb')) {
-        return `rgba(${color.substring(4, color.length - 1)}, ${opacity})`;
-    }
-
-    if (color.startsWith('#')) {
-        let r = 0, g = 0, b = 0;
-        // Handle shorthand hex (e.g., #03F)
-        if (color.length === 4) {
-            r = parseInt(color[1] + color[1], 16);
-            g = parseInt(color[2] + color[2], 16);
-            b = parseInt(color[3] + color[3], 16);
-        } else if (color.length === 7) {
-            r = parseInt(color.substring(1, 3), 16);
-            g = parseInt(color.substring(3, 5), 16);
-            b = parseInt(color.substring(5, 7), 16);
-        }
-        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    }
-
-    // For color names, we need a canvas context to parse them.
-    // This will work in any browser environment.
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        // Fallback for non-browser environments, though this app is browser-based.
-        return `rgba(0, 0, 0, ${opacity})`;
-    }
-    ctx.fillStyle = color;
-    // The browser converts the color name to an RGB/RGBA value.
-    // We parse that value to get the R, G, B components.
-    const computedColor = ctx.fillStyle;
-    if (computedColor.startsWith('#')) {
-        return toRgba(computedColor, opacity); // Recurse with the hex value
-    }
-    // For "rgb(r, g, b)" format
-    const match = computedColor.match(/(\d+)/g);
-    if (match && match.length >= 3) {
-        const [r, g, b] = match.map(Number);
-        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    }
-
-    // Fallback if color name is invalid
-    return `rgba(0, 0, 0, ${opacity})`;
-};
-=======
 export const COLOR_MAP: { [key: string]: string } = {
     "red": "#FF0000",
     "green": "#008000",
@@ -97,6 +42,28 @@ export const COLOR_MAP: { [key: string]: string } = {
     "tortoise": "#81613C",
 };
 
+// Type definitions for color utilities
+export type ColorSpace = 'hex' | 'rgb' | 'hsl' | 'hsv';
+export type ThemeColorKey = 'primary' | 'secondary' | 'accent' | 'neutral';
+
+// Theme colors for the application
+export const THEME_COLORS = {
+    primary: '#3B82F6',
+    secondary: '#6B7280',
+    accent: '#10B981',
+    neutral: '#374151',
+    danger: '#EF4444',
+    warning: '#F59E0B',
+    success: '#10B981',
+    info: '#3B82F6'
+};
+
+// Data visualization color palette
+export const DATA_COLORS = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+];
+
 export const getColorHex = (colorName: string): string | undefined => {
     return COLOR_MAP[colorName.toLowerCase()];
 };
@@ -139,4 +106,97 @@ export const toRgba = (color: string, opacity: number = 1): string => {
     const rgbaResult = `rgba(${r}, ${g}, ${b}, ${opacity})`;
     return rgbaResult;
 };
->>>>>>> Stashed changes
+
+// Validate if a color string is valid
+export const isValidColor = (color: string): boolean => {
+    try {
+        const hex = toHex(color);
+        return /^#[0-9A-F]{6}$/i.test(hex);
+    } catch {
+        return false;
+    }
+};
+
+// Convert color between different formats
+export const convertColor = (color: string, targetSpace: ColorSpace): string => {
+    const hex = toHex(color);
+    
+    switch (targetSpace) {
+        case 'hex':
+            return hex;
+        case 'rgb':
+            const r = parseInt(hex.substring(1, 3), 16);
+            const g = parseInt(hex.substring(3, 5), 16);
+            const b = parseInt(hex.substring(5, 7), 16);
+            return `rgb(${r}, ${g}, ${b})`;
+        case 'hsl':
+        case 'hsv':
+            // Simplified conversion - would need more complex math for full implementation
+            return hex;
+        default:
+            return hex;
+    }
+};
+
+// Get color information
+export const getColorInfo = (color: string) => {
+    const hex = toHex(color);
+    const r = parseInt(hex.substring(1, 3), 16);
+    const g = parseInt(hex.substring(3, 5), 16);
+    const b = parseInt(hex.substring(5, 7), 16);
+    
+    // Calculate brightness
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    
+    return {
+        hex,
+        rgb: { r, g, b },
+        brightness,
+        isDark: brightness < 128
+    };
+};
+
+// Generate a color palette
+export const generatePalette = (baseColor: string, count: number = 5): string[] => {
+    const colors: string[] = [];
+    const info = getColorInfo(baseColor);
+    
+    for (let i = 0; i < count; i++) {
+        const factor = (i + 1) / (count + 1);
+        const r = Math.round(info.rgb.r * factor);
+        const g = Math.round(info.rgb.g * factor);
+        const b = Math.round(info.rgb.b * factor);
+        colors.push(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
+    }
+    
+    return colors;
+};
+
+// Get analogous colors
+export const getAnalogousColors = (color: string): string[] => {
+    // Simplified implementation - would need HSL conversion for proper analogous colors
+    return generatePalette(color, 3);
+};
+
+// Get complementary colors
+export const getComplementaryColors = (color: string): string[] => {
+    const info = getColorInfo(color);
+    const compR = 255 - info.rgb.r;
+    const compG = 255 - info.rgb.g;
+    const compB = 255 - info.rgb.b;
+    
+    const complementary = `#${compR.toString(16).padStart(2, '0')}${compG.toString(16).padStart(2, '0')}${compB.toString(16).padStart(2, '0')}`;
+    return [color, complementary];
+};
+
+// Get triadic colors
+export const getTriadicColors = (color: string): string[] => {
+    // Simplified implementation
+    return generatePalette(color, 3);
+};
+
+// Get split complementary colors
+export const getSplitComplementaryColors = (color: string): string[] => {
+    // Simplified implementation
+    return generatePalette(color, 3);
+};

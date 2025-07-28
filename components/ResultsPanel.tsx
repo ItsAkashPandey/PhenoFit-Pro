@@ -1,6 +1,5 @@
 import React from 'react';
 import { KeyPoints, FitParameters, CurveModel } from '../types';
-import Card from './ui/Card';
 import Button from './ui/Button';
 
 interface ResultsPanelProps {

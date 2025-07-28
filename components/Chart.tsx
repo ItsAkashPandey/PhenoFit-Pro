@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  ResponsiveContainer, ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceDot, Label, ReferenceArea, ReferenceLine, Symbols
+  ResponsiveContainer, ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid, ReferenceDot, Label, ReferenceArea, ReferenceLine, Symbols
 } from 'recharts';
-import { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { Point, KeyPoints, GroupingData, StyleTarget, ChartStyles, ChartElementPositions, DraggablePosition, MarkerStyle } from '../types';
 import { toRgba } from '../services/colorUtils';
 
@@ -35,52 +34,6 @@ const DraggableWrapper: React.FC<DraggableComponentProps> = ({ x, y, onDragStart
     );
 };
 
-// Define a more specific type for the tooltip props to avoid issues with recharts' internal types.
-interface CustomTooltipComponentProps {
-    active?: boolean;
-    payload?: {
-        payload: Point;
-        name: NameType;
-        value: ValueType;
-    }[];
-    xCol: string;
-    yCol: string;
-    isDateAxis: boolean;
-}
-
-const CustomTooltip: React.FC<CustomTooltipComponentProps> = ({ active, payload, xCol, yCol, isDateAxis }) => {
-    if (!active || !payload || !payload.length) return null;
-    // Filter valid items (Observed, Pending Outliers, Fitted Curve)
-    const validItems = payload.filter(p => p && p.payload && typeof p.payload.x === 'number' && typeof p.payload.y === 'number' && isFinite(p.payload.x) && isFinite(p.payload.y) && (p.name === 'Observed' || p.name === 'Pending Outliers' || p.name === 'Fitted Curve'));
-    if (validItems.length === 0) return null;
-    return (
-        <div className="p-2 bg-panel-bg border border-panel-border rounded-md shadow-lg text-sm font-sans text-on-panel-primary">
-            {validItems.map((p, idx) => {
-                let label = p.name;
-                if (label === 'Observed' || label === 'Pending Outliers') label = 'Point';
-                if (label === 'Fitted Curve') label = 'Fitted Line';
-                let xValue: string | number | undefined = p.payload.originalX;
-                if (xValue === undefined) {
-                    if (isDateAxis) {
-                        const d = new Date(p.payload.x);
-                        xValue = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    } else {
-                        xValue = p.payload.x.toFixed(2);
-                    }
-                }
-                let yLabel = (p.name === 'Fitted Curve') ? `${yCol} (Fitted Value)` : `${yCol} (raw)`;
-                return (
-                    <div key={idx} className="mb-2 last:mb-0">
-                        <p className="font-bold text-accent-blue-on-panel">{label}</p>
-                        <p>{`${xCol}: ${xValue}`}</p>
-                        <p>{`${yLabel}: ${p.payload.y.toFixed(2)}`}</p>
-                    </div>
-                );
-            })}
-        </div>
-    );
-};
-
 interface ChartProps {
   observedData: Point[];
   pendingRemovalData: Point[];
@@ -106,16 +59,11 @@ interface ChartProps {
   isDragging: boolean;
   onLegendSizeChange: (size: { width: number; height: number }) => void;
   isRightPanelOpen: boolean;
+  isLegendManuallyPositioned: boolean;
   setIsLegendManuallyPositioned: (isManuallyPositioned: boolean) => void;
 }
 
-const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis, chartAreaRef, xAxisLabel, yAxisLabel, onAxisLabelClick, showLegend, xAxisDomain, yAxisDomain, isDragging, onLegendSizeChange, isRightPanelOpen, isLegendManuallyPositioned, setIsLegendManuallyPositioned }) => {
-  const allDataForDomain = [...observedData, ...pendingRemovalData];
-  const yDataDomain = allDataForDomain.length > 0 
-    ? [Math.min(...allDataForDomain.map(p => p.y)), Math.max(...allDataForDomain.map(p => p.y))]
-    : [0, 1];
-  const yPadding = (yDataDomain[1] - yDataDomain[0]) * 0.15;
-  const finalYDomain = [yDataDomain[0] - yPadding, yDataDomain[1] + yPadding];
+const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fittedData, keyPoints, groupingData, xCol, yCol, showKeyPoints, styles, positions, onElementClick, onDragStart, isDateAxis, isCircularAxis, chartAreaRef, xAxisLabel, yAxisLabel, onAxisLabelClick, showLegend, xAxisDomain, yAxisDomain, onLegendSizeChange, isRightPanelOpen, isLegendManuallyPositioned, setIsLegendManuallyPositioned }) => {
 
   // Vertical staggering for grouping labels
   const getLabelYOffset = (index: number) => 10 + (index % 4) * 20;
@@ -272,13 +220,11 @@ const Chart: React.FC<ChartProps> = ({ observedData = [], pendingRemovalData, fi
       chartHeight = chartAreaRef.current.offsetHeight;
     }
     
-    const margin = 16;
     let legendX = positions.legend.x;
     let legendY = positions.legend.y;
 
     const chartMargin = { top: 20, right: 30, left: 40, bottom: 30 };
     const plotAreaWidth = chartWidth - chartMargin.left - chartMargin.right;
-    const plotAreaHeight = chartHeight - chartMargin.top - chartMargin.bottom;
 
     if (!isLegendManuallyResized && !isLegendManuallyPositioned) {
         if (isRightPanelOpen) {

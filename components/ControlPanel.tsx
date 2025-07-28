@@ -120,8 +120,10 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
       <div className="p-4 space-y-6 flex-grow">
         <Card title="Data & Setup" className="bg-transparent border-none shadow-none" titleClassName={cardTitleClass}>
-            <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, onFileLoad)} accept=".csv, .xlsx, .xls" className="hidden" />
-            <Button onClick={() => fileInputRef.current?.click()} className="w-full" variant="secondary">Load Data File</Button>
+            <div className="relative">
+                <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, onFileLoad)} accept=".csv, .xlsx, .xls" className="hidden" />
+                <Button onClick={() => fileInputRef.current?.click()} className="w-full" variant="secondary">Load Data File</Button>
+            </div>
             
             <div className="flex items-center mt-2 space-x-2">
               <input type="file" ref={groupingFileInputRef} onChange={(e) => handleFileChange(e, onGroupingFileLoad)} accept=".csv, .xlsx, .xls" className="hidden" />

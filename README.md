@@ -40,6 +40,14 @@ PhenoFit Pro is a purpose-built web application, tailored to perform complex phe
 - Click-to-edit any element: point, curve, axis, background, labels, etc.
 - Reposition draggable elements like legends, tooltips, and annotation boxes
 
+### 🤖 AI Assistant
+- **Intelligent Chat Interface**: Interactive AI assistant with multiple personalities (Sane, Moody, Weirdo)
+- **Natural Language Commands**: Control chart styling using plain English commands
+- **Context-Aware Responses**: Maintains conversation context for follow-up commands
+- **Smart Entity Recognition**: Understands chart elements, colors, shapes, and styling properties
+- **Multi-Model Support**: Powered by advanced LLMs including DeepSeek R1, Qwen 2.5, and Gemini 2.0 Flash
+- **Request Cancellation**: Stop button for LLM requests with full abort support
+
 ### 📤 Export Capabilities
 - Download **high-res PNG** chart images
 - Export full results as **Excel (.xlsx)** with:
@@ -61,6 +69,9 @@ PhenoFit Pro is a purpose-built web application, tailored to perform complex phe
 | 📄 File Parsing | Papaparse (CSV), SheetJS (Excel) |
 | 📦 Modules | ES Modules + ImportMap (build-less) |
 | 🖼 PNG Export | html-to-image |
+| 🤖 AI Integration | OpenRouter API with multiple LLM models |
+| 🧠 NLU Engine | Custom Natural Language Understanding |
+| 💬 Context Management | Advanced dialogue state management |
 
 This stack enables zero-install, zero-server usage—everything happens in-browser.
 

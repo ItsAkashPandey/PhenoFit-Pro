@@ -23,6 +23,7 @@ const GroupingDialog: React.FC<GroupingDialogProps> = ({ columns, onSubmit, onCa
             startCol,
             endCol: endCol || null,
             labelCol: labelCol === '' ? null : labelCol,
+            colorCol: null,
         });
     };
     
