@@ -64,6 +64,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
   const [failureCount, setFailureCount] = useState(0);
   const [canStopProcessing, setCanStopProcessing] = useState(false);
   const [currentAbortController, setCurrentAbortController] = useState<AbortController | null>(null);
+  const [isApiKeyConfigured, setIsApiKeyConfigured] = useState(LLMService.isConfigured());
 
   // Refs for handling clicks outside dropdowns
   const configRef = useRef<HTMLDivElement>(null);
@@ -73,6 +74,25 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
 
   // Get DialogueService instance
   const dialogueService = DialogueService.getInstance();
+
+  // Check API key configuration periodically
+  useEffect(() => {
+    const checkApiKeyStatus = () => {
+      const currentStatus = LLMService.isConfigured();
+      if (currentStatus !== isApiKeyConfigured) {
+        console.log('API key configuration changed:', currentStatus);
+        setIsApiKeyConfigured(currentStatus);
+      }
+    };
+
+    // Check immediately
+    checkApiKeyStatus();
+
+    // Check every 5 seconds to catch external changes
+    const interval = setInterval(checkApiKeyStatus, 5000);
+
+    return () => clearInterval(interval);
+  }, [isApiKeyConfigured]);
 
   // Click outside handler
   useEffect(() => {
@@ -237,7 +257,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
         // Handle fallback with LLM
         setFailureCount(prev => prev + 1);
         
-        if (!LLMService.isConfigured()) {
+        if (!isApiKeyConfigured) {
           response = 'I didn\'t understand that. Please configure the OpenRouter API key in settings to enable advanced AI responses, or try rephrasing your request with more specific terms.';
         } else {
           // Allow stopping since we're about to call LLM
@@ -273,7 +293,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
         }
       } else if (nluResult.intent === 'chitchat') {
         // Handle chitchat
-        if (!LLMService.isConfigured()) {
+        if (!isApiKeyConfigured) {
           response = 'Hello! I\'d love to chat, but I need an OpenRouter API key to be configured first. You can set this up in the settings.';
         } else {
           // Allow stopping since we're about to call LLM
@@ -321,7 +341,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
         }
       } else if (nluResult.intent === 'question') {
         // Handle definition requests
-        if (!LLMService.isConfigured()) {
+        if (!isApiKeyConfigured) {
           response = 'I can help explain terms, but I need an OpenRouter API key configured for detailed explanations. Please set this up in settings.';
         } else {
           // Allow stopping since we're about to call LLM
@@ -556,7 +576,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
   };
 
   const testConnection = async () => {
-    if (!LLMService.isConfigured()) {
+    if (!isApiKeyConfigured) {
       addMessage({
         role: 'assistant',
         content: 'Please configure your OpenRouter API key first.'
@@ -724,7 +744,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
               <div className="flex gap-2">
                 <button
                   onClick={testConnection}
-                  disabled={isProcessing || !LLMService.isConfigured()}
+                  disabled={isProcessing || !isApiKeyConfigured}
                   className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   Test Connection
@@ -747,7 +767,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
           <div className="p-4">
             <ApiKeySettings 
               isOpen={isApiKeySettingsOpen}
-              onClose={() => setIsApiKeySettingsOpen(false)} 
+              onClose={() => {
+                setIsApiKeySettingsOpen(false);
+                // Refresh API key configuration status
+                setIsApiKeyConfigured(LLMService.isConfigured());
+              }} 
             />
           </div>
         </div>
