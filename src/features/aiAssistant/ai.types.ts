@@ -50,7 +50,6 @@ export interface AISettings {
 export interface AIAssistantConfig {
   selectedPersona: string;
   selectedModel: string;
-  apiKey: string;
   isEnabled: boolean;
   debugMode: boolean;
   temperature?: number;

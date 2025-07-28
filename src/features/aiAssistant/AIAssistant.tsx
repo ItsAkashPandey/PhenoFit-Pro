@@ -41,7 +41,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
   const [config, setConfig] = useState<AIAssistantConfig>({
     selectedPersona: 'sane',
     selectedModel: 'deepseek/deepseek-r1:free',
-    apiKey: '',
     isEnabled: true,
     debugMode: false
   });
@@ -244,7 +243,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
       
       console.log('User input:', userInput);
       console.log('NLU Result:', nluResult);
-      console.log('API Key configured:', LLMService.isConfigured());
+      console.log('API Key configured:', isApiKeyConfigured);
       
       if (config.debugMode) {
         console.log('Debug Mode - NLU Result:', nluResult);
@@ -301,6 +300,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
           
           try {
             const persona = LLMService.getPersonaById(config.selectedPersona);
+            
             if (persona) {
               // Check if aborted before making request
               if (abortController.signal.aborted) {
@@ -318,7 +318,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
               response = 'Hello! How can I help you with your phenological analysis today?';
             }
           } catch (error) {
-            console.error('LLM Error:', error);
+            console.error('Chitchat LLM Error:', error);
+            
             // More specific error handling for chitchat
             if (error instanceof Error) {
               if (error.message === 'Request aborted') {
@@ -706,15 +707,23 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
-                  OpenRouter API Key
+                  API Key Status
                 </label>
-                <input
-                  type="password"
-                  value={config.apiKey}
-                  onChange={(e) => setConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                  placeholder="Enter your OpenRouter API key"
-                  className="w-full text-sm p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-on-panel-primary placeholder-on-panel-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                />
+                <div className="w-full text-sm p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-on-panel-primary">
+                  {isApiKeyConfigured ? (
+                    <span className="text-green-600 dark:text-green-400">✅ API Key Configured</span>
+                  ) : (
+                    <span className="text-red-600 dark:text-red-400">❌ API Key Not Configured</span>
+                  )}
+                  <div className="mt-2">
+                    <button
+                      onClick={() => setIsApiKeySettingsOpen(true)}
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm underline"
+                    >
+                      Configure API Key →
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 

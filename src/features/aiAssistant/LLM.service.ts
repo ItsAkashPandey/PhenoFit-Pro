@@ -441,7 +441,7 @@ CRITICAL: Keep explanation SHORT and clear. Maximum 2-3 sentences. Stay in chara
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.apiKey}`,
-          'HTTP-Referer': window.location.origin,
+          'HTTP-Referer': window.location.origin || 'https://itsakashpandey.github.io',
           'X-Title': 'PhenoFit Pro AI Assistant'
         },
         body: JSON.stringify(payload)
