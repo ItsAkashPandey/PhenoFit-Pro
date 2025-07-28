@@ -42,7 +42,6 @@ export interface AIMessage {
 export interface AISettings {
   selectedPersona: string;
   selectedModel: string;
-  apiKey: string;
   temperature: number;
   maxTokens: number;
 }
@@ -278,7 +277,6 @@ export const LLM_MODELS: LLMModel[] = [
 export const DEFAULT_AI_SETTINGS: AISettings = {
   selectedPersona: 'sane',
   selectedModel: 'deepseek/deepseek-r1',
-  apiKey: '',
   temperature: 0.7,
   maxTokens: 80 // Reduced from 512 for shorter responses
 };

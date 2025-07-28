@@ -31,22 +31,41 @@ export class LLMService {
   private currentApiKeyIndex: number = 0;
   
   private constructor() {
-    // Try to load API key from environment or localStorage
-    this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || 
-                  localStorage.getItem('openrouter_api_key') || '';
+    const primaryKey = localStorage.getItem('openrouter_api_key') || 
+                     import.meta.env.VITE_OPENROUTER_API_KEY || '';
     
-    // Load additional API keys from localStorage if available
-    const storedKeys = localStorage.getItem('openrouter_api_keys');
-    if (storedKeys) {
+    const storedKeysJson = localStorage.getItem('openrouter_api_keys');
+    let storedKeys: string[] = [];
+    if (storedKeysJson) {
       try {
-        this.apiKeys = JSON.parse(storedKeys);
-        if (this.apiKeys.length > 0 && !this.apiKey) {
-          this.apiKey = this.apiKeys[0];
+        const parsed = JSON.parse(storedKeysJson);
+        if (Array.isArray(parsed)) {
+          storedKeys = parsed;
         }
       } catch (e) {
         console.warn('Failed to parse stored API keys');
       }
     }
+
+    const allKeys = new Set(storedKeys);
+    if (primaryKey) {
+      allKeys.add(primaryKey);
+    }
+
+    this.apiKeys = Array.from(allKeys);
+
+    if (primaryKey && this.apiKeys.includes(primaryKey)) {
+      this.apiKey = primaryKey;
+      this.currentApiKeyIndex = this.apiKeys.indexOf(primaryKey);
+    } else if (this.apiKeys.length > 0) {
+      this.apiKey = this.apiKeys[0];
+      this.currentApiKeyIndex = 0;
+    } else {
+      this.apiKey = '';
+      this.currentApiKeyIndex = 0;
+    }
+    
+    localStorage.setItem('openrouter_api_keys', JSON.stringify(this.apiKeys));
   }
   
   static getInstance(): LLMService {
@@ -58,8 +77,17 @@ export class LLMService {
 
   // Set API key
   setApiKey(apiKey: string): void {
-    this.apiKey = apiKey;
-    localStorage.setItem('openrouter_api_key', apiKey);
+    const trimmedKey = apiKey.trim();
+    this.apiKey = trimmedKey;
+
+    const existingKeys = new Set(this.apiKeys);
+    existingKeys.add(trimmedKey);
+    this.apiKeys = Array.from(existingKeys);
+
+    this.currentApiKeyIndex = this.apiKeys.indexOf(trimmedKey);
+
+    localStorage.setItem('openrouter_api_key', trimmedKey);
+    localStorage.setItem('openrouter_api_keys', JSON.stringify(this.apiKeys));
   }
 
   // Add multiple API keys for fallback
@@ -70,6 +98,7 @@ export class LLMService {
     // If no primary key is set, use the first one
     if (!this.apiKey && this.apiKeys.length > 0) {
       this.apiKey = this.apiKeys[0];
+      this.currentApiKeyIndex = 0;
       localStorage.setItem('openrouter_api_key', this.apiKey);
     }
   }
@@ -84,20 +113,22 @@ export class LLMService {
   // Remove an API key by index
   removeApiKey(index: number): void {
     if (index >= 0 && index < this.apiKeys.length) {
+      const removedKey = this.apiKeys[index];
       this.apiKeys.splice(index, 1);
       localStorage.setItem('openrouter_api_keys', JSON.stringify(this.apiKeys));
       
-      // If we removed the current key, switch to another
-      if (this.currentApiKeyIndex >= this.apiKeys.length) {
-        this.currentApiKeyIndex = 0;
-      }
-      
-      if (this.apiKeys.length > 0) {
-        this.apiKey = this.apiKeys[this.currentApiKeyIndex];
-        localStorage.setItem('openrouter_api_key', this.apiKey);
+      if (this.apiKey === removedKey) {
+        if (this.apiKeys.length > 0) {
+          this.currentApiKeyIndex = 0;
+          this.apiKey = this.apiKeys[0];
+          localStorage.setItem('openrouter_api_key', this.apiKey);
+        } else {
+          this.apiKey = '';
+          this.currentApiKeyIndex = 0;
+          localStorage.removeItem('openrouter_api_key');
+        }
       } else {
-        this.apiKey = '';
-        localStorage.removeItem('openrouter_api_key');
+        this.currentApiKeyIndex = this.apiKeys.indexOf(this.apiKey);
       }
     }
   }
@@ -144,6 +175,13 @@ export class LLMService {
       throw new Error('AI Assistant requires an OpenRouter API key to function. Please configure your API key in the settings. You can get a free API key at https://openrouter.ai/settings/keys');
     }
 
+    // Defensive check to ensure apiKeys is not empty if a primary key exists
+    if (this.apiKeys.length === 0 && this.apiKey) {
+      console.warn('LLMService: Recovering apiKeys array from the primary apiKey.');
+      this.apiKeys = [this.apiKey];
+      this.currentApiKeyIndex = 0;
+    }
+
     const payload = {
       model: request.model,
       messages: [
@@ -174,8 +212,7 @@ export class LLMService {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': window.location.origin,
-            'X-Title': 'PhenoFit Pro AI Assistant'
+            'HTTP-Referer': window.location.origin
           },
           body: JSON.stringify(payload),
           signal: request.abortSignal
@@ -441,8 +478,7 @@ CRITICAL: Keep explanation SHORT and clear. Maximum 2-3 sentences. Stay in chara
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.apiKey}`,
-          'HTTP-Referer': window.location.origin || 'https://itsakashpandey.github.io',
-          'X-Title': 'PhenoFit Pro AI Assistant'
+          'HTTP-Referer': window.location.origin || 'https://itsakashpandey.github.io'
         },
         body: JSON.stringify(payload)
       });

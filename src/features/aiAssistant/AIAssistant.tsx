@@ -124,9 +124,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
       try {
         const parsed = JSON.parse(savedConfig);
         setConfig(prev => ({ ...prev, ...parsed }));
-        if (parsed.apiKey) {
-          LLMService.setApiKey(parsed.apiKey);
-        }
       } catch (error) {
         console.error('Failed to load AI config:', error);
       }
@@ -136,9 +133,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ appSetters, appGetters, class
   // Save config changes
   useEffect(() => {
     localStorage.setItem('ai_assistant_config', JSON.stringify(config));
-    if (config.apiKey) {
-      LLMService.setApiKey(config.apiKey);
-    }
   }, [config]);
 
   // Auto-scroll to bottom
